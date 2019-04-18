@@ -1,0 +1,105 @@
+#!/usr/bin/env ruby
+
+BYTE_ORDER_MARKS = {
+  "\xEF\xBB\xBF".force_encoding('ASCII-8BIT') => 'UTF-8',
+  "\xFE\xFF".force_encoding('ASCII-8BIT') => 'UTF-16',
+  "\xFF\xFE".force_encoding('ASCII-8BIT') => 'UTF-16',
+  "\x00\x00\xFE\xFF".force_encoding('ASCII-8BIT') => 'UTF-32',
+  "\xFF\xFE\x00\x00".force_encoding('ASCII-8BIT') => 'UTF-32'
+}
+
+def strip_byte_order_mark(line)
+  BYTE_ORDER_MARKS.keys.detect do |bom|
+    if line =~ /\A#{bom}/
+      return line.sub(/\A#{bom}/, '')
+    end
+  end
+  line
+end
+
+def csv_parse_line(line)
+  columns = []
+
+  opened_quote = false
+  pos = -1
+  last_comma_pos = 0
+  column = 1
+
+  while pos = line.index(/([",])/, pos + 1)
+    case line[pos]
+    when '"'
+      if opened_quote
+        if line[pos+1] == ',' ||
+           line[pos+1] == "\n" ||
+           line[pos+1].nil?
+          opened_quote = false
+        elsif line[pos+1] == '"'
+          pos += 1 # correctly escaped
+        else
+          col_end = line.index(/,/, pos + 1)
+          col_end ||= line.size - 1
+          # slice out the column value
+          val = line[last_comma_pos + 1, col_end - last_comma_pos - 1]
+          columns << [val, :stray_quote]
+          opened_quote = false
+          last_comma_pos = col_end
+          pos = col_end
+          # return columns
+        end
+      else
+        opened_quote = true
+      end
+    when ','
+      if ! opened_quote
+        column += 1
+        columns << [line[last_comma_pos + 1, pos - last_comma_pos - 1], :ok]
+        last_comma_pos = pos
+      end
+    end
+  end
+
+  columns
+end
+
+def empty_column?(col)
+  col.nil? ||
+    col.empty? ||
+    col.strip.empty? ||
+    col == '""' ||
+    col == '" "'
+end
+
+def parse_csv_row(file, lineno, number_of_lines)
+  cnt = 1
+  str = ''
+  file.each do |line|
+    cnt += 1
+    next if cnt < lineno
+    str << line
+    number_of_lines -= 1
+    break if number_of_lines == 0
+  end
+  csv_parse_line(str)
+end
+
+file = File.open(ARGV[0], 'rb')
+lineno = ARGV[1].to_i
+number_of_lines = (ARGV[2] || 1).to_i
+
+raise "no lineno specified" unless lineno > 0
+
+headers = strip_byte_order_mark(file.readline.strip).split(',')
+
+data = headers.zip(parse_csv_row(file, lineno, number_of_lines))
+file.close
+
+cnt = 0
+data.each do |k, (v, status)|
+  cnt += 1
+  next if empty_column?(v)
+  if status == :ok
+    puts sprintf('  %-3d %s: %s', cnt, k, v)
+  else
+    puts sprintf('* %-3d (%s) %s: %s', cnt, status.to_s.gsub('_', ' '), k, v)
+  end
+end
