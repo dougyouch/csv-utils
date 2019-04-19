@@ -22,7 +22,7 @@ def csv_parse_line(line)
 
   opened_quote = false
   pos = -1
-  last_comma_pos = 0
+  last_comma_pos = -1
   column = 1
 
   while pos = line.index(/([",])/, pos + 1)
