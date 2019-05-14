@@ -7,8 +7,7 @@ begin
   CSV.open(ARGV[0], 'rb').each { }
 rescue CSV::MalformedCSVError => e
   puts e.class.to_s + ': ' + e.message
-  if e.message =~ /Missing or stray quote in line (\d+)/ ||
-     e.message =~ /Unclosed quoted field on line (\d+)/
+  if e.message =~ /line (\d+)/
     lineno = $1.to_i
     cmd = "csv-readline #{Shellwords.escape(ARGV[0])} #{lineno}"
     puts "running #{cmd}"

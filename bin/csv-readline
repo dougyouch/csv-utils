@@ -47,7 +47,19 @@ def csv_parse_line(line)
           # return columns
         end
       else
-        opened_quote = true
+        if (last_comma_pos == -1 && pos != 0) ||
+           (last_comma_pos != -1 && line[pos-1] != ',')
+          col_end = line.index(/,/, pos + 1)
+          col_end ||= line.size - 1
+          # slice out the column value
+          val = line[last_comma_pos + 1, col_end - last_comma_pos - 1]
+          columns << [val, :stray_quote]
+          opened_quote = false
+          last_comma_pos = col_end
+          pos = col_end
+        else
+          opened_quote = true
+        end
       end
     when ','
       if ! opened_quote
