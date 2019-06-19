@@ -30,6 +30,7 @@ def csv_parse_line(line)
     when '"'
       if opened_quote
         if line[pos+1] == ',' ||
+           line[pos+1] == "\r" ||
            line[pos+1] == "\n" ||
            line[pos+1].nil?
           opened_quote = false
