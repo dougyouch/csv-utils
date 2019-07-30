@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+require 'optparse'
+
 BYTE_ORDER_MARKS = {
   "\xEF\xBB\xBF".force_encoding('ASCII-8BIT') => 'UTF-8',
   "\xFE\xFF".force_encoding('ASCII-8BIT') => 'UTF-16',
@@ -25,7 +27,7 @@ def csv_parse_line(line)
   last_comma_pos = -1
   column = 1
 
-  while pos = line.index(/([",])/, pos + 1)
+  while pos = line.index(/([",\n])/, pos + 1)
     case line[pos]
     when '"'
       if opened_quote
@@ -62,7 +64,8 @@ def csv_parse_line(line)
           opened_quote = true
         end
       end
-    when ','
+    when ',',
+         "\n"
       if ! opened_quote
         column += 1
         columns << [line[last_comma_pos + 1, pos - last_comma_pos - 1], :ok]
@@ -95,6 +98,22 @@ def parse_csv_row(file, lineno, number_of_lines)
   csv_parse_line(str)
 end
 
+options = {
+  all_columns: false
+}
+OptionParser.new do |opts|
+  opts.banner = 'Usage: ' + File.basename(__FILE__) + ' [options] <csv file> <line number> [<number of lines>]'
+
+  opts.on('-h', '--help', 'Prints this help') do
+    puts opts
+    exit
+  end
+
+  opts.on('-a', '--all', 'Display all columns') do
+    options[:all_columns] = true
+  end
+end.parse!
+
 file = File.open(ARGV[0], 'rb')
 lineno = ARGV[1].to_i
 number_of_lines = (ARGV[2] || 1).to_i
@@ -109,7 +128,7 @@ file.close
 cnt = 0
 data.each do |k, (v, status)|
   cnt += 1
-  next if empty_column?(v)
+  next if !options[:all_columns] && empty_column?(v)
   if status == :ok
     puts sprintf('  %-3d %s: %s', cnt, k, v)
   else
