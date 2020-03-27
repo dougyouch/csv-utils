@@ -1,0 +1,54 @@
+#!/usr/bin/env ruby
+
+require 'csv'
+
+def bold_string(str)
+  "\033[1m#{str}\033[0m"
+end
+  
+USAGE = "Usage: #{bold_string('csv-change-eol')} <csv_file> <end of line character sequence in hex>"
+
+def exit_on_error(msg)
+  $stderr.print <<STR
+Error: #{bold_string(msg)}
+
+#{USAGE}
+
+  End of line example: '7C5E7C0A' is '|^|\\n'
+   - 0A is new line
+   - 0D is carriage return
+
+  Goto: #{bold_string('http://www.asciitable.com/')} for help with the character sequence
+
+STR
+  exit 1
+end
+
+csv_file = ARGV.shift || exit_on_error('no csv file specified')
+eol_sequence = ARGV.shift || exit_on_error('no EOL character sequence specified')
+
+exit_on_error("file #{csv_file} not found") unless File.exist?(csv_file)
+exit_on_error("not a HEX sequece (#{eol_sequence})") unless eol_sequence =~ /\A[0-9a-f]+\z/i
+exit_on_error("incorrect number of characters in (#{eol_sequence}), should be even") unless eol_sequence.size.even?
+
+eol_sequence = [eol_sequence].pack('H*')
+
+
+escaped_csv_file =
+  if csv_file =~ /\.csv$/i
+    csv_file.sub(/(\.csv)$/i, '.escaped-eol\1')
+  else
+    csv_file + '.escaped-eol'
+  end
+
+
+File.open(escaped_csv_file, 'wb') do |out|
+  CSV.foreach(csv_file) do |row|
+    line = row.to_csv
+    line.rstrip!
+    line.concat(eol_sequence)
+    out.write line
+  end
+end
+
+puts escaped_csv_file
