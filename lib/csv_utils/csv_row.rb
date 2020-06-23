@@ -1,3 +1,5 @@
+require 'inheritance-helper'
+
 module CSVUtils
   module CSVRow
     def self.included(base)
@@ -30,6 +32,7 @@ module CSVUtils
     def csv_row
       self.class.csv_columns.values.map { |column_options| csv_column_value(column_options) }
     end
+    alias_method :to_a, :csv_row
 
     private
 
