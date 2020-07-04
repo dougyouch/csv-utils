@@ -11,20 +11,20 @@ class CSVUtils::CSVExtender
   end
 
   def append(additional_headers)
-    open(additional_headers) do |src, dest, headers|
+    process(additional_headers) do |current_headers|
       while (row = src.shift)
-        additional_columns = yield row, headers
+        additional_columns = yield row, current_headers
         dest << (row + additional_columns)
       end
     end
   end
 
   def append_in_batches(additional_headers, batch_size = 1_000)
-    open(additional_headers) do |src, dest, headers|
+    process(additional_headers) do |current_headers|
       batch = []
 
       process_batch_proc = Proc.new do
-        additional_rows = yield batch, headers
+        additional_rows = yield batch, current_headers
 
         batch.each_with_index do |row, idx|
           dest << (row + additional_rows[idx])
@@ -43,23 +43,34 @@ class CSVUtils::CSVExtender
     end
   end
 
-  def open(additional_headers)
-    CSV.open(csv_file, 'rb', csv_options) do |src|
-      CSV.open(new_csv_file, 'wb', csv_options) do |dest|
-        headers = append_headers(src, dest, additional_headers)
+  def process(additional_headers)
+    current_headers = append_headers(additional_headers)
 
-        yield src, dest, headers
-      end
-    end
+    yield current_headers
+
+    close
+  end
+
+  def src
+    @src ||= CSV.open(csv_file, 'rb', csv_options)
+  end
+
+  def dest
+    @dest ||= CSV.open(new_csv_file, 'wb', csv_options)
+  end
+
+  def close
+    src.close
+    dest.close
   end
 
   private
 
-  def append_headers(src, dest, additional_headers)
+  def append_headers(additional_headers)
     return nil unless additional_headers
 
-    headers = src.shift
-    dest << (headers + additional_headers)
-    headers
+    current_headers = src.shift
+    dest << (current_headers + additional_headers)
+    current_headers
   end
 end
