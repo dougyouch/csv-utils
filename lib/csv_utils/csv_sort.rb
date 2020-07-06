@@ -53,7 +53,7 @@ class CSVUtils::CSVSort
         append_row2_proc.call
       elsif row2.nil?
         append_row1_proc.call
-      elsif yield(row1, row2) < 0
+      elsif yield(row1, row2) <= 0
         append_row1_proc.call
       else
         append_row2_proc.call
