@@ -6,4 +6,5 @@ module CSVUtils
   autoload :CSVOptions, 'csv_utils/csv_options'
   autoload :CSVReport, 'csv_utils/csv_report'
   autoload :CSVRow, 'csv_utils/csv_row'
+  autoload :CSVSort, 'csv_utils/csv_sort'
 end
