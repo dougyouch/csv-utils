@@ -4,7 +4,7 @@ module CSVUtils
     attr_reader :csv,
                 :must_close
 
-    def initialize(csv, csv_options = {}, &block)
+    def initialize(csv, headers = nil, csv_options = {}, &block)
       @csv =
         if csv.is_a?(String)
           @must_close = true
@@ -15,10 +15,11 @@ module CSVUtils
           csv
         end
 
-      generate(&block) if block
+      generate(headers, &block) if block
     end
 
-    def generate
+    def generate(headers = nil)
+      add_headers(headers) if headers
       yield self
       @csv.close if @must_close
     end

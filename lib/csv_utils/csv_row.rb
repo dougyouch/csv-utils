@@ -23,10 +23,16 @@ module CSVUtils
 
         add_value_to_class_method(:csv_columns, header => options)
       end
-    end
 
-    def csv_headers
-      self.class.csv_columns.values.map { |column_options| csv_column_header(column_options) }
+      def csv_headers
+        csv_columns.values.map { |column_options| csv_column_header(column_options) }
+      end
+
+      private
+
+      def csv_column_header(column_options)
+        column_options[:header]
+      end
     end
 
     def csv_row
@@ -34,11 +40,11 @@ module CSVUtils
     end
     alias_method :to_a, :csv_row
 
-    private
-
-    def csv_column_header(column_options)
-      column_options[:header]
+    def csv_headers
+      self.class.csv_headers
     end
+
+    private
 
     def csv_column_value(column_options)
       if column_options[:proc]

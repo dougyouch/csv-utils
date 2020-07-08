@@ -65,8 +65,7 @@ describe CSVUtils::CSVReport do
   context 'initialize' do
     let(:csv) { 'csv-utils-test.csv' }
     subject do
-      CSVUtils::CSVReport.new(csv) do |report|
-        report.add_headers(test_csv_row)
+      CSVUtils::CSVReport.new(csv, test_csv_row_class) do |report|
         report << test_csv_row
       end
     end
