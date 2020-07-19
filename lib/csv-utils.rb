@@ -7,4 +7,6 @@ module CSVUtils
   autoload :CSVReport, 'csv_utils/csv_report'
   autoload :CSVRow, 'csv_utils/csv_row'
   autoload :CSVSort, 'csv_utils/csv_sort'
+  autoload :CSVTransformer, 'csv_utils/csv_transformer'
+  autoload :CSVWrapper, 'csv_utils/csv_wrapper'
 end

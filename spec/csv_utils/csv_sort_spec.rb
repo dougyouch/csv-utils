@@ -2,7 +2,7 @@ require 'spec_helper'
 
 describe CSVUtils::CSVSort do
   let(:random_numbers) do
-    1_000_000.times.map do
+    100_000.times.map do
       rand(1_000_000)
     end
   end
