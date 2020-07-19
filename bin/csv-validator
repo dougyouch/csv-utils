@@ -1,0 +1,47 @@
+#!/usr/bin/env ruby
+
+require 'csv'
+require 'rchardet'
+
+def utf8?(str)
+  str
+    .force_encoding('utf-8')
+    .valid_encoding?
+end
+
+def convert_to_utf8(str, current_encoding)
+  str.force_encoding(current_encoding)
+  return nil unless str.valid_encoding?
+
+  str.encode('utf-8')
+end
+
+def detect_encoding(col)
+  CharDet.detect(col)['encoding']
+end
+
+csv = CSV.open(ARGV[0], 'rb')
+
+headers = csv.shift
+csv_lineno = 1
+
+while (row = csv.shift)
+  csv_lineno += 1
+
+  unless row.size == headers.size
+    $stderr.puts "row(#{csv_lineno}): invalid number of columns, expected #{headers.size} got #{row.size}"
+  end
+
+  row.each_with_index do |col, idx|
+    next if utf8?(col)
+
+    $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}): none UTF-8 characters found in \"#{col}\""
+    if (col_utf8_encoded = convert_to_utf8(col, detect_encoding(col)))
+      puts "row(#{csv_lineno}),col(#{idx + 1}): converted to UTF-8 \"#{col_utf8_encoded}\""
+    else
+      $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}): unknown character encoding"
+    end
+  end
+end
+
+csv.close
