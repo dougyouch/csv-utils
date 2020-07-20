@@ -26,8 +26,10 @@ def detect_encoding(col)
 end
 
 csv = CSV.open(ARGV[0], 'rb')
+out = CSV.open(ARGV[1], 'wb') if ARGV[1]
 
 headers = csv.shift
+out << headers if out
 csv_lineno = 1
 
 while (row = csv.shift)
@@ -37,16 +39,22 @@ while (row = csv.shift)
     $stderr.puts "row(#{csv_lineno}): invalid number of columns, expected #{headers.size} got #{row.size}"
   end
 
+  converted = false
   row.each_with_index do |col, idx|
     next if utf8?(col)
 
     $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}): none UTF-8 characters found in \"#{col}\""
     if (col_utf8_encoded = convert_to_utf8(col, detect_encoding(col)))
+      converted = true
       puts "row(#{csv_lineno}),col(#{idx + 1}): converted to UTF-8 from #{detect_encoding(col)} \"#{col_utf8_encoded}\""
+      row[idx] = col_utf8_encoded
     else
       $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}): unknown character encoding"
     end
   end
+
+  out << row if out && converted
 end
 
 csv.close
+out.close if out
