@@ -48,7 +48,7 @@ end
 out = nil
 if id_column_num
   out = CSV.open('utf8-correctsion.csv', 'wb')
-  out << [id_column_name, 'Row', 'Col', 'Header', 'UTF8Value', 'CurrentEncoding', 'CurrentValue']
+  out << [id_column_name, 'Row', 'Col', 'Header', 'Value']
 end
 
 csv_lineno = 1
@@ -66,7 +66,7 @@ while (row = csv.shift)
     $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: none UTF-8 characters found in \"#{col}\""
     if (col_utf8_encoded = convert_to_utf8(col, detect_encoding(col)))
       puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: converted to UTF-8 from #{detect_encoding(col)} \"#{col_utf8_encoded}\""
-      out << [row[id_column_num], csv_lineno, (idx + 1), headers[idx], col_utf8_encoded.force_encoding('ASCII-8BIT'), detect_encoding(col), col.force_encoding('ASCII-8BIT')]
+      out << [row[id_column_num], csv_lineno, (idx + 1), headers[idx], col_utf8_encoded]
     else
       $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: unknown character encoding"
     end
