@@ -43,13 +43,13 @@ while (row = csv.shift)
   row.each_with_index do |col, idx|
     next if utf8?(col)
 
-    $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}): none UTF-8 characters found in \"#{col}\""
+    $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: none UTF-8 characters found in \"#{col}\""
     if (col_utf8_encoded = convert_to_utf8(col, detect_encoding(col)))
       converted = true
-      puts "row(#{csv_lineno}),col(#{idx + 1}): converted to UTF-8 from #{detect_encoding(col)} \"#{col_utf8_encoded}\""
+      puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: converted to UTF-8 from #{detect_encoding(col)} \"#{col_utf8_encoded}\""
       row[idx] = col_utf8_encoded
     else
-      $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}): unknown character encoding"
+      $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: unknown character encoding"
     end
   end
 
