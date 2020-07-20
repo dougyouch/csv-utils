@@ -1,7 +1,12 @@
 #!/usr/bin/env ruby
 
 require 'csv'
-require 'rchardet'
+begin
+  require 'rchardet'
+rescue LoadError
+  $stderr.puts 'gem install rchardet'
+  exit 1
+end
 
 def utf8?(str)
   str
