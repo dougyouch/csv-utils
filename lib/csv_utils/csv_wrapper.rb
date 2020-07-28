@@ -35,6 +35,10 @@ class CSVUtils::CSVWrapper
     csv.shift
   end
 
+  def rewind
+    csv.rewind
+  end
+
   def close
     csv.close if close_when_done?
   end

@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+
+require 'csv-utils'
+require 'irb'
+
+def csv
+  @csv ||= CSVUtils::CSVIterator.new(ARGV[0])
+end
+
+IRB.start(__FILE__)
