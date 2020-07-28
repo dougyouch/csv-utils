@@ -2,6 +2,23 @@
 class CSVUtils::CSVIterator
   include Enumerable
 
+  class RowWrapper < Hash
+    attr_accessor :lineno
+
+    def self.create(headers, row, lineno)
+      row_wrapper = RowWrapper[headers.zip(row)]
+      row_wrapper.lineno = lineno
+      row_wrapper
+    end
+
+    def to_pretty_s
+      reject { |_, v| v.strip.empty? }
+        .each_with_index
+        .map { |(k, v), idx| sprintf('  %-3d %s: %s', idx+1, k, v) }
+        .join("\n") + "\n"
+    end
+  end
+
   def initialize(src_csv, csv_options = {})
     @src_csv = CSVUtils::CSVWrapper.new(src_csv, 'rb', csv_options)
   end
@@ -18,7 +35,7 @@ class CSVUtils::CSVIterator
 
     while (row = @src_csv.shift)
       lineno += 1
-      yield Hash[headers.zip(row)], lineno
+      yield RowWrapper.create(headers, row, lineno)
     end
   end
 
