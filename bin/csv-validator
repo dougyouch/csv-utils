@@ -61,7 +61,7 @@ while (row = csv.shift)
   end
 
   row.each_with_index do |col, idx|
-    next if utf8?(col)
+    next if col.nil? || utf8?(col)
 
     $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: none UTF-8 characters found in \"#{col}\""
     if (col_utf8_encoded = convert_to_utf8(col, detect_encoding(col)))
