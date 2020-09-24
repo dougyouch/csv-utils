@@ -2,6 +2,8 @@
 class CSVUtils::CSVIterator
   include Enumerable
 
+  attr_reader :prev_row
+
   class RowWrapper < Hash
     attr_accessor :lineno
 
@@ -33,9 +35,11 @@ class CSVUtils::CSVIterator
       lineno += 1
     end
 
+    @prev_row = nil
     while (row = @src_csv.shift)
       lineno += 1
       yield RowWrapper.create(headers, row, lineno)
+      @prev_row = row
     end
   end
 
