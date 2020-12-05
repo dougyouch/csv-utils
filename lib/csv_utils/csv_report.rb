@@ -15,11 +15,12 @@ module CSVUtils
           csv
         end
 
-      generate(headers, &block) if block
+      add_headers(headers) if headers
+
+      generate(&block) if block
     end
 
-    def generate(headers = nil)
-      add_headers(headers) if headers
+    def generate
       yield self
       close if @must_close
     end
