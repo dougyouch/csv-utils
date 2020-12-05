@@ -21,7 +21,7 @@ module CSVUtils
     def generate(headers = nil)
       add_headers(headers) if headers
       yield self
-      @csv.close if @must_close
+      close if @must_close
     end
 
     def append(csv_row)
@@ -36,6 +36,10 @@ module CSVUtils
 
     def add_headers(csv_row)
       append(csv_row.is_a?(Array) ? csv_row : csv_row.csv_headers)
+    end
+
+    def close
+      @csv.close
     end
   end
 end
