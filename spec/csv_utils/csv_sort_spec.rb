@@ -32,5 +32,13 @@ describe CSVUtils::CSVSort do
     before { subject }
 
     it { expect(new_csv_nums).to eq(random_numbers.sort) }
+
+    describe 'empty csv file' do
+      let(:random_numbers) { [] }
+
+      before { subject }
+
+      it { expect(new_csv_nums).to eq(random_numbers.sort) }
+    end
   end
 end

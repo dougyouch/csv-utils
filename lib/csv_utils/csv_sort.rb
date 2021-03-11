@@ -86,7 +86,7 @@ class CSVUtils::CSVSort
       create_batch_part_proc.call if batch.size >= batch_size
     end
 
-    create_batch_part_proc.call if batch.size > 0
+    create_batch_part_proc.call if batch.size > 0 || @csv_part_files.size == 0
 
     src.close
   end
