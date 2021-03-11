@@ -20,7 +20,7 @@ class CSVUtils::CSVWrapper
   def open(csv, mode, csv_options)
     if csv.is_a?(String)
       @close_when_done = true
-      @csv = CSV.open(csv, mode, csv_options)
+      @csv = CSV.open(csv, mode, **csv_options)
     else
       @close_when_done = false
       @csv = csv

@@ -9,7 +9,7 @@ module CSVUtils
         if csv.is_a?(String)
           @must_close = true
           mode = csv_options.delete(:mode) || 'wb'
-          CSV.open(csv, mode, csv_options)
+          CSV.open(csv, mode, **csv_options)
         else
           @must_close = false
           csv

@@ -14,7 +14,7 @@ describe CSVUtils::CSVOptions do
   let(:headings) { [first_heading, 'Name'] }
   let(:csv_row) { headings.map { |_| SecureRandom.uuid } }
   let(:csv) do
-    CSV.generate(options) do |csv|
+    CSV.generate(**options) do |csv|
       csv << headings
       csv << csv_row
     end.force_encoding('ASCII-8BIT')

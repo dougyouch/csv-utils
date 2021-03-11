@@ -25,9 +25,9 @@ class CSVUtils::CSVSort
   private
 
   def merge_sort_csv_files(src_csv_file1, src_csv_file2, dest_csv_file)
-    src1 = CSV.open(src_csv_file1, 'rb', csv_options)
-    src2 = CSV.open(src_csv_file2, 'rb', csv_options)
-    dest = CSV.open(dest_csv_file, 'wb', csv_options)
+    src1 = CSV.open(src_csv_file1, 'rb', **csv_options)
+    src2 = CSV.open(src_csv_file2, 'rb', **csv_options)
+    dest = CSV.open(dest_csv_file, 'wb', **csv_options)
 
     if @headers
       dest << @headers
@@ -66,7 +66,7 @@ class CSVUtils::CSVSort
   end
 
   def create_sorted_csv_part_files(batch_size, &block)
-    src = CSV.open(csv_file, 'rb', csv_options)
+    src = CSV.open(csv_file, 'rb', **csv_options)
 
     @headers = src.shift if has_headers
 
@@ -74,7 +74,7 @@ class CSVUtils::CSVSort
     create_batch_part_proc = Proc.new do
       batch.sort!(&block)
       @csv_part_files << "#{new_csv_file}.part.#{@csv_part_files.size}"
-      CSV.open(@csv_part_files.last, 'wb', csv_options) do |csv|
+      CSV.open(@csv_part_files.last, 'wb', **csv_options) do |csv|
         csv << @headers if @headers
         batch.each { |row| csv << row }
       end
