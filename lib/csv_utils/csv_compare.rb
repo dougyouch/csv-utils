@@ -1,14 +1,20 @@
 # frozen_string_literal: true
-require 'shellwords'
 
+# CSVUtils::CSVCompare purpose is to determine which rows in the secondary_data_file need to be created, deleted or updated
+# **requires both CSV files to be sorted on the same columns, CSVUtils::CSVSort can accomplish this
+# In order to receive updates, update_comparison_columns must configured or use inheritance and change the update_row? method
 class CSVUtils::CSVCompare
-  include CommandLineHelpers
-
+  # primary_data_file is the source of truth
+  # compare_proc used to compare the id column(s)
+  # update_comparison_columns column(s) to compare for equality, ex: updated_at, timestamp, hash
+  #  caveat: update_comparison_columns need to be in both csv files
   attr_reader :primary_data_file,
+              :update_comparison_columns,
               :compare_proc
 
-  def initialize(primary_data_file, &block)
+  def initialize(primary_data_file, update_comparison_columns=nil, &block)
     @primary_data_file = primary_data_file
+    @update_comparison_columns = update_comparison_columns
     @compare_proc = block
   end
 
@@ -39,9 +45,7 @@ class CSVUtils::CSVCompare
         read_next_src = true
         read_next_dest = true
 
-        unless src_record['timestamp'] == dest_record['timestamp']
-          yield :update, src_record
-        end
+        yield(:update, src_record) if update_row?(src_record, dest_record)
       elsif compare_proc.call(src_record, dest_record) > 0
         read_next_src = false
         read_next_dest = true
@@ -65,5 +69,15 @@ class CSVUtils::CSVCompare
     return nil if file.eof?
 
     Hash[headers.zip(file.shift)]
+  end
+
+  def update_row?(src_record, dest_record)
+    return false unless update_comparison_columns
+
+    update_comparison_columns.each do |column_name|
+      return true unless src_record[column_name] == dest_record[column_name]
+    end
+
+    false
   end
 end
