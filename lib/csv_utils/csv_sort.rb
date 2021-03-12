@@ -86,7 +86,7 @@ class CSVUtils::CSVSort
       create_batch_part_proc.call if batch.size >= batch_size
     end
 
-    create_batch_part_proc.call if batch.size > 0 || @csv_part_files.size == 0
+    create_batch_part_proc.call if batch.size > 0
 
     src.close
   end
@@ -107,6 +107,6 @@ class CSVUtils::CSVSort
       File.unlink(csv_part_file2)
     end
 
-    FileUtils.mv(@csv_part_files.last, new_csv_file)
+    FileUtils.mv(@csv_part_files.last || @csv_file, new_csv_file)
   end
 end
