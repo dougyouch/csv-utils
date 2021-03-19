@@ -14,7 +14,7 @@ class CSVUtils::CSVIterator
     end
 
     def to_pretty_s
-      reject { |_, v| v.strip.empty? }
+      reject { |_, v| v.nil? || v.strip.empty? }
         .each_with_index
         .map { |(k, v), idx| sprintf('  %-3d %s: %s', idx+1, k, v) }
         .join("\n") + "\n"

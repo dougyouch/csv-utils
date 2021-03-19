@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |s|
   s.name        = 'csv-utils'
-  s.version     = '0.3.9'
+  s.version     = '0.3.10'
   s.licenses    = ['MIT']
   s.summary     = 'CSV Utils'
   s.description = 'Tools for debugging malformed CSV files'
