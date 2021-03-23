@@ -107,6 +107,10 @@ class CSVUtils::CSVSort
       File.unlink(csv_part_file2)
     end
 
-    FileUtils.mv(@csv_part_files.last || @csv_file, new_csv_file)
+    if @csv_part_files.size > 0
+      FileUtils.mv(@csv_part_files.last, new_csv_file)
+    else
+      FileUtils.cp(@csv_file, new_csv_file)
+    end
   end
 end
