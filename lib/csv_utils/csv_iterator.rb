@@ -43,6 +43,26 @@ class CSVUtils::CSVIterator
     end
   end
 
+  def headers
+    first.keys
+  end
+
+  def to_hash(key, value = nil)
+    raise("header #{key} not found in #{headers}") unless headers.include?(key)
+    raise("headers #{value} not found in #{headers}") if value && !headers.include?(value)
+
+    value_proc =
+      if value
+        proc { |row| row[value] }
+      else
+        proc { |row| yield(row) }
+      end
+
+    each_with_object({}) do |row, hsh|
+      hsh[row[key]] = value_proc.call(row)
+    end
+  end
+
   private
 
   def strip_bom!(col)
