@@ -45,7 +45,9 @@ class CSVUtils::CSVIterator
 
   def headers
     @src_csv.rewind
-    @src_csv.shift
+    headers = @src_csv.shift
+    strip_bom!(headers[0])
+    headers
   end
 
   def to_hash(key, value = nil)
