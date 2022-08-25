@@ -1,0 +1,69 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+
+options = {
+  ignore_columns: []
+}
+OptionParser.new do |opts|
+  opts.banner = 'Usage: ' + File.basename(__FILE__) + ' [options] <csv file>'
+
+  opts.on('-h', '--help', 'Prints this help') do
+    puts opts
+    exit
+  end
+
+  opts.on('-i', '--ignore HEADERS', 'Comman separated list of headers to ignore') do |v|
+    options[:ignore_columns] = v.split(',')
+  end
+end.parse!
+
+require 'digest/sha2'
+require 'json'
+require 'csv-utils'
+
+csv = CSVUtils::CSVIterator.new(ARGV[0])
+
+missing_headers = options[:ignore_columns] - csv.first.keys
+unless missing_headers.empty?
+  raise("unkown headers #{missing_headers.join(', ')} configured ingnore headers")
+end
+
+hashed_rows = {}
+
+csv.each_with_index do |row, idx|
+  options[:ignore_columns].each do |ignore_column|
+    row[ignore_column] = ''
+  end
+  key = Digest::SHA256.hexdigest(row.to_json)
+  hashed_rows[key] ||= []
+  hashed_rows[key] << idx
+end
+
+duplicate_rows = {}
+
+hashed_rows.reject! { |key, row_numbers| row_numbers.size <= 1 }
+
+hashed_rows.each do |key, row_numbers|
+  hashed_rows[key] = {}
+  row_numbers.each do |row_number|
+    duplicate_rows[row_number] = key
+    hashed_rows[key][row_number] = nil
+  end
+end
+
+csv.each_with_index do |row, idx|
+  next unless (key = duplicate_rows[idx])
+
+  hashed_rows[key][idx] = row
+end
+
+CSV.open('duplicates-' + File.basename(ARGV[0]), 'wb') do |out|
+  out << ['duplicate_key', 'row_no'] + csv.first.keys
+
+  hashed_rows.each do |key, rows|
+    rows.each do |idx, row|
+      out << [key, idx] + row.values
+    end
+  end
+end
