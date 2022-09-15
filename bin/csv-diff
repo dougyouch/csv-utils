@@ -4,7 +4,8 @@ require 'optparse'
 
 options = {
   unique_headers: [],
-  ignore_headers: []
+  ignore_headers: [],
+  sort_batch_size: 1_000_000
 }
 OptionParser.new do |opts|
   opts.banner = 'Usage: ' + File.basename(__FILE__) + ' [options] <csv file>'
@@ -20,6 +21,10 @@ OptionParser.new do |opts|
 
   opts.on('-i', '--ignore HEADERS', 'Comman separated list of headers to ignore during row comparison') do |v|
     options[:ignore_headers] = v.split(',')
+  end
+
+  opts.on('--sort-batch-size SIZE', Integer, 'Number of rows to load into memory while sorting') do |v|
+    opts[:sort_batch_size] = v
   end
 end.parse!
 
@@ -49,12 +54,24 @@ options[:unique_headers] = [csv1.first.keys.first] if options[:unique_headers].e
 
 puts "uniqueness header(s) are #{options[:unique_headers].join(', ')}"
 
+unique_header_indexes = []
+csv1.first.keys.each_with_index do |header, idx|
+  unique_header_indexes << idx if options[:unique_headers].include?(header)
+end
+
 sort_compare_proc = proc do |csv1_row, csv2_row|
   result = 0
-  csv1_row.each_with_index do |csv1_col, idx|
-    csv2_col = csv2_row[idx]
-    result = csv1_col <=> csv2_col
+  unique_header_indexes.each do |idx|
+    result = csv1_row[idx] <=> csv2_row[idx]
     break unless result == 0
+  end
+
+  if result == 0
+    csv1_row.each_with_index do |csv1_col, idx|
+      csv2_col = csv2_row[idx]
+      result = csv1_col <=> csv2_col
+      break unless result == 0
+    end
   end
 
   result
@@ -65,11 +82,11 @@ csv2_sorted_file_name = ARGV[1] + '.sorted'
 
 puts "sorting #{ARGV[0]}"
 sorter = CSVUtils::CSVSort.new(ARGV[0], csv1_sorted_file_name)
-sorter.sort(1_000_000, &sort_compare_proc)
+sorter.sort(options[:sort_batch_size], &sort_compare_proc)
 
 puts "sorting #{ARGV[1]}"
 sorter = CSVUtils::CSVSort.new(ARGV[1], csv2_sorted_file_name)
-sorter.sort(1_000_000, &sort_compare_proc)
+sorter.sort(options[:sort_batch_size], &sort_compare_proc)
 
 options[:unique_headers] = [csv1.first.keys.first]
 update_comparison_columns = csv1.first.keys - options[:unique_headers]
