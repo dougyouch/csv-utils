@@ -1,0 +1,76 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+
+options = {
+  ignore_columns: []
+}
+OptionParser.new do |opts|
+  opts.banner = 'Usage: ' + File.basename(__FILE__) + ' [options] <csv file>'
+
+  opts.on('-h', '--help', 'Prints this help') do
+    puts opts
+    exit
+  end
+
+  opts.on('-i', '--ignore HEADERS', 'Comman separated list of headers to ignore') do |v|
+    options[:ignore_columns] = v.split(',')
+  end
+end.parse!
+
+require 'csv-utils'
+
+csv1 = CSVUtils::CSVIterator.new(ARGV[0])
+csv2 = CSVUtils::CSVIterator.new(ARGV[1])
+
+unless csv1.first.keys == csv2.first.keys
+  $stderr.puts("headers do not match #{ARGV[0]} headers #{csv1.first.keys}, #{ARGV[1]} headers #{csv2.first.keys}")
+  exit 1
+end
+
+unknown_ignore_columns = options[:ignore_columns] - csv1.first.keys
+unless unknown_ignore_columns.empty?
+  $stderr.puts("specified headers to ignore are unknown #{unknown_ignore_columns}")
+  exit 1
+end
+
+sort_compare_proc = proc do |csv1_row, csv2_row|
+  result = 0
+  csv1_row.each_with_index do |csv1_col, idx|
+    csv2_col = csv2_row[idx]
+    result = csv1_col <=> csv2_col
+    break unless result == 0
+  end
+
+  result
+end
+
+csv1_file_sorted_name = ARGV[0] + '.sorted'
+csv2_file_sorted_name = ARGV[1] + '.sorted'
+
+sorter = CSVUtils::CSVSort.new(ARGV[0], csv1_file_sorted_name)
+sorter.sort(1_000_000, &sort_compare_proc)
+
+sorter = CSVUtils::CSVSort.new(ARGV[1], csv2_file_sorted_name)
+sorter.sort(1_000_000, &sort_compare_proc)
+
+unique_key_columns = [csv1.first.keys.first]
+update_comparison_columns = csv1.first.keys - unique_key_columns
+update_comparison_columns -= options[:ignore_columns]
+
+comparer = CSVUtils::CSVCompare.new(csv1_file_sorted_name, update_comparison_columns) do |csv1_row, csv2_row|
+  result = 0
+  unique_key_columns.each do |header|
+    result = csv1_row[header] <=> csv2_row[header]
+    break unless result == 0
+  end
+
+  result
+end
+
+stats = Hash.new(0)
+comparer.compare(csv2_file_sorted_name) do |action, record|
+  stats[action] += 1
+  puts "#{action}: #{record}"
+end
+puts stats
