@@ -3,7 +3,8 @@
 require 'optparse'
 
 options = {
-  ignore_columns: []
+  unique_headers: [],
+  ignore_headers: []
 }
 OptionParser.new do |opts|
   opts.banner = 'Usage: ' + File.basename(__FILE__) + ' [options] <csv file>'
@@ -13,8 +14,12 @@ OptionParser.new do |opts|
     exit
   end
 
-  opts.on('-i', '--ignore HEADERS', 'Comman separated list of headers to ignore') do |v|
-    options[:ignore_columns] = v.split(',')
+  opts.on('-u', '--unique HEADERS', 'Comman separated list of headers that genrate a unique key per a row, use 1st column by default') do |v|
+    options[:unique_headers] = v.split(',')
+  end
+
+  opts.on('-i', '--ignore HEADERS', 'Comman separated list of headers to ignore during row comparison') do |v|
+    options[:ignore_headers] = v.split(',')
   end
 end.parse!
 
@@ -28,11 +33,21 @@ unless csv1.first.keys == csv2.first.keys
   exit 1
 end
 
-unknown_ignore_columns = options[:ignore_columns] - csv1.first.keys
-unless unknown_ignore_columns.empty?
-  $stderr.puts("specified headers to ignore are unknown #{unknown_ignore_columns}")
+unknown_unique_headers = options[:unique_headers] - csv1.first.keys
+unless unknown_unique_headers.empty?
+  $stderr.puts("specified unique headers are unknown #{unknown_unique_headers}")
   exit 1
 end
+
+unknown_ignore_headers = options[:ignore_headers] - csv1.first.keys
+unless unknown_ignore_headers.empty?
+  $stderr.puts("specified headers to ignore are unknown #{unknown_ignore_headers}")
+  exit 1
+end
+
+options[:unique_headers] = [csv1.first.keys.first] if options[:unique_headers].empty?
+
+puts "uniqueness header(s) are #{options[:unique_headers].join(', ')}"
 
 sort_compare_proc = proc do |csv1_row, csv2_row|
   result = 0
@@ -45,22 +60,24 @@ sort_compare_proc = proc do |csv1_row, csv2_row|
   result
 end
 
-csv1_file_sorted_name = ARGV[0] + '.sorted'
-csv2_file_sorted_name = ARGV[1] + '.sorted'
+csv1_sorted_file_name = ARGV[0] + '.sorted'
+csv2_sorted_file_name = ARGV[1] + '.sorted'
 
-sorter = CSVUtils::CSVSort.new(ARGV[0], csv1_file_sorted_name)
+puts "sorting #{ARGV[0]}"
+sorter = CSVUtils::CSVSort.new(ARGV[0], csv1_sorted_file_name)
 sorter.sort(1_000_000, &sort_compare_proc)
 
-sorter = CSVUtils::CSVSort.new(ARGV[1], csv2_file_sorted_name)
+puts "sorting #{ARGV[1]}"
+sorter = CSVUtils::CSVSort.new(ARGV[1], csv2_sorted_file_name)
 sorter.sort(1_000_000, &sort_compare_proc)
 
-unique_key_columns = [csv1.first.keys.first]
-update_comparison_columns = csv1.first.keys - unique_key_columns
-update_comparison_columns -= options[:ignore_columns]
+options[:unique_headers] = [csv1.first.keys.first]
+update_comparison_columns = csv1.first.keys - options[:unique_headers]
+update_comparison_columns -= options[:ignore_headers]
 
-comparer = CSVUtils::CSVCompare.new(csv1_file_sorted_name, update_comparison_columns) do |csv1_row, csv2_row|
+comparer = CSVUtils::CSVCompare.new(csv1_sorted_file_name, update_comparison_columns) do |csv1_row, csv2_row|
   result = 0
-  unique_key_columns.each do |header|
+  options[:unique_headers].each do |header|
     result = csv1_row[header] <=> csv2_row[header]
     break unless result == 0
   end
@@ -69,8 +86,23 @@ comparer = CSVUtils::CSVCompare.new(csv1_file_sorted_name, update_comparison_col
 end
 
 stats = Hash.new(0)
-comparer.compare(csv2_file_sorted_name) do |action, record|
-  stats[action] += 1
-  puts "#{action}: #{record}"
+puts "comparing #{ARGV[0]} with #{ARGV[1]}"
+diff_file_name = 'diff-results-' + ARGV[0]
+CSV.open(diff_file_name, 'wb') do |out|
+  out << ['Result'] + csv1.first.keys
+  comparer.compare(csv2_sorted_file_name) do |action, record|
+    stats[action] += 1
+    out << [action] + record.values
+  end
 end
-puts stats
+puts "differences found #{stats}"
+
+File.unlink(csv1_sorted_file_name)
+File.unlink(csv2_sorted_file_name)
+
+if stats.empty?
+  puts "files were identical"
+  File.unlink(diff_file_name)
+else
+  puts "results can be found in #{diff_file_name}"
+end
