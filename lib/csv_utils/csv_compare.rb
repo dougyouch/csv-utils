@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # CSVUtils::CSVCompare purpose is to determine which rows in the secondary_data_file need to be created, deleted or updated
 # **requires both CSV files to be sorted on the same columns, CSVUtils::CSVSort can accomplish this
 # In order to receive updates, update_comparison_columns must configured or use inheritance and change the update_row? method
@@ -19,10 +17,12 @@ class CSVUtils::CSVCompare
   end
 
   def compare(secondary_data_file)
-    src = CSV.open(primary_data_file)
+    src = CSV.open(primary_data_file, 'rb')
     src_headers = src.shift
-    dest = CSV.open(secondary_data_file)
+    strip_bom!(src_headers[0])
+    dest = CSV.open(secondary_data_file, 'rb')
     dest_headers = dest.shift
+    strip_bom!(dest_headers[0])
 
     read_next_src = true
     read_next_dest = true
@@ -79,5 +79,9 @@ class CSVUtils::CSVCompare
     end
 
     false
+  end
+
+  def strip_bom!(col)
+    col.sub!("\xEF\xBB\xBF".force_encoding('ASCII-8BIT'), '')
   end
 end
