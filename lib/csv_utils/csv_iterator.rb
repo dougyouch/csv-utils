@@ -66,6 +66,16 @@ class CSVUtils::CSVIterator
     end
   end
 
+  def size
+    @src_csv.rewind
+    @src_csv.shift
+    cnt = 0
+    while @src_csv.shift
+      cnt +=1
+    end
+    cnt
+  end
+
   private
 
   def strip_bom!(col)
