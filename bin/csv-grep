@@ -1,0 +1,91 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+
+options = {
+  search: nil,
+  exact_match: false,
+  headers: :first,
+  limit: nil,
+  search_regex_options: nil
+}
+OptionParser.new do |opts|
+  opts.banner = 'Usage: ' + File.basename(__FILE__) + ' [options] <csv file>'
+
+  opts.on('-h', '--help', 'Prints this help') do
+    puts opts
+    exit
+  end
+
+  opts.on('-s', '--search SEARCH', 'Search expression') do |v|
+    options[:search] = v.to_s
+  end
+
+  opts.on('-e', '--exact-match', 'Exact match') do
+    options[:exact_match] = true
+  end
+
+  # -c stands for column, since -h is used for help
+  opts.on('-c', '--headers HEADERS', 'Comma separated list of headers to search (default first column)') do |v|
+    options[:headers] = v == 'all' ? :all : v.split(',')
+  end
+
+  opts.on('-l', '--limit LIMIT', Integer, 'Limit the number of matches') do |v|
+    options[:limit] = v
+  end
+
+  opts.on('-i', '--ignore-case', 'Ignore case') do |v|
+    options[:search_regex_options] = Regexp::IGNORECASE
+  end
+end.parse!
+
+raise('no search specified') unless options[:search]
+
+require 'csv-utils'
+
+csv = CSVUtils::CSVIterator.new(ARGV[0])
+
+search_regex =
+  if options[:exact_match]
+    Regexp.new('\A' + Regexp.escape(options[:search]) + '\z', options[:search_regex_options])
+  else
+    Regexp.new(options[:search], options[:search_regex_options])
+  end
+
+headers =
+  case options[:headers]
+  when :first
+    csv.headers.first
+  when :all
+    csv.headers
+  else
+    options[:headers]
+  end
+
+missing_headers = headers - csv.headers
+raise("unknown headers #{headers.join(', ')}") unless missing_headers.empty?
+
+matching_row_proc = proc do |row|
+  result = false
+
+  headers.each do |header|
+    next unless (val = row[header])
+
+    if search_regex.match?(val)
+      result = true
+      break
+    end
+  end
+
+  result
+end
+
+matches = 0
+csv.each do |row|
+  next unless matching_row_proc.call(row)
+
+  matches += 1
+  print row.to_pretty_s + "\n"
+
+  break if options[:limit] && matches >= options[:limit]
+end
