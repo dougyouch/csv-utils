@@ -55,7 +55,7 @@ search_regex =
 headers =
   case options[:headers]
   when :first
-    csv.headers.first
+    [csv .headers.first]
   when :all
     csv.headers
   else
