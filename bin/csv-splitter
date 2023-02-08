@@ -1,0 +1,81 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+
+options = {
+  rows: 250_000,
+  no_header: false
+}
+OptionParser.new do |opts|
+  opts.banner = 'Usage: ' + File.basename(__FILE__) + ' [options] <csv file>'
+
+  opts.on('-h', '--help', 'Prints this help') do
+    puts opts
+    exit
+  end
+
+  opts.on('-r', '--rows ROWS', Integer, 'Max number of rows per a CSV') do |v|
+    options[:rows] = v
+  end
+
+  opts.on('--no-header', 'CSV file has no header') do
+    options[:no_header] = true
+  end
+end.parse!
+
+file = ARGV[0] || raise('no CSV file specified')
+
+require 'csv-utils'
+
+def get_split_file_name(file, num_files, total_files)
+  if file =~ /\.(?:csv|tsv)$/i
+    file.sub(/\.(?:csv|tsv)$/i) { |m| "-part-#{num_files}-of-#{total_files}" + m }
+  else
+    file + "-part-#{num_files}"
+  end
+end
+
+csv_options = CSVUtils::CSVOptions.new(file)
+
+csv = CSV.open(
+  file,
+  'rb',
+  col_sep: csv_options.col_separator,
+  liberal_parsing: true
+)
+
+headers = options[:no_header] ? nil : csv.shift
+
+total_rows = 0
+while csv.shift
+  total_rows +=1
+end
+
+csv.rewind
+csv.shift if headers
+
+total_files = total_rows / options[:rows]
+total_files += 1 if (total_rows % options[:rows]) > 0
+
+num_rows = 0
+num_files = 0
+out = nil
+
+append_row_proc = proc do |row|
+  if out.nil? || num_rows >= options[:rows]
+    out.close if out
+    num_rows = 0
+    num_files += 1
+    out = CSV.open(get_split_file_name(file, num_files, total_files), 'wb', col_sep: csv_options.col_separator)
+    out << headers if headers
+  end
+
+  out << row
+  num_rows += 1
+end
+
+while (row = csv.shift)
+  append_row_proc.call(row)
+end
+
+out.close
