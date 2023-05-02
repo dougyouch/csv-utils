@@ -29,9 +29,9 @@ require 'csv-utils'
 
 def get_split_file_name(file, num_files, total_files)
   if file =~ /\.(?:csv|tsv)$/i
-    file.sub(/\.(?:csv|tsv)$/i) { |m| "-part-#{num_files}-of-#{total_files}" + m }
+    file.sub(/\.(?:csv|tsv)$/i) { |m| ".part-#{num_files}-of-#{total_files}" + m }
   else
-    file + "-part-#{num_files}"
+    file + ".part-#{num_files}"
   end
 end
 
