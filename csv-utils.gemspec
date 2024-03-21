@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |s|
   s.name        = 'csv-utils'
-  s.version     = '0.3.23'
+  s.version     = '0.3.24'
   s.licenses    = ['MIT']
   s.summary     = 'CSV Utils'
   s.description = 'Tools for debugging malformed CSV files'
@@ -13,5 +13,6 @@ Gem::Specification.new do |s|
   s.bindir      = 'bin'
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
 
+  s.add_runtime_dependency 'csv'
   s.add_runtime_dependency 'inheritance-helper'
 end
