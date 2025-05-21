@@ -66,6 +66,34 @@ class CSVUtils::CSVIterator
     end
   end
 
+  def size
+    @src_csv.rewind
+    @src_csv.shift
+    cnt = 0
+    while @src_csv.shift
+      cnt +=1
+    end
+    cnt
+  end
+
+  def each_batch(batch_size = 1_000)
+    batch = []
+
+    process_batch_proc = Proc.new do
+      yield batch
+      batch = []
+    end
+
+    each do |row|
+      batch << row
+      process_batch_proc.call if batch.size >= batch_size
+    end
+
+    process_batch_proc.call if batch.size > 0
+
+    nil
+  end
+
   private
 
   def strip_bom!(col)
