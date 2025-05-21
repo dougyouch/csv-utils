@@ -2,14 +2,12 @@
 
 source 'http://rubygems.org'
 
+gem 'csv'
 gem 'inheritance-helper'
 
 group :development do
   gem 'rake'
   gem 'rubocop'
-end
-
-group :spec do
   gem 'rspec'
   gem 'simplecov'
 end
