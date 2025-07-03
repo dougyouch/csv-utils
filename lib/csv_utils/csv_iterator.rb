@@ -21,8 +21,8 @@ class CSVUtils::CSVIterator
     end
   end
 
-  def initialize(src_csv, csv_options = {})
-    @src_csv = CSVUtils::CSVWrapper.new(src_csv, 'rb', csv_options)
+  def initialize(src_csv, csv_options = {}, mode = 'rb')
+    @src_csv = CSVUtils::CSVWrapper.new(src_csv, mode, csv_options)
   end
 
   def each(headers = nil)
