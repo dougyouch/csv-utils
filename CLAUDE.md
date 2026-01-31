@@ -54,3 +54,10 @@ Format using angular formatting:
 - **type**: build|ci|docs|feat|fix|perf|refactor|test
 - **scope**: The feature or component of the service we're working on
 - **summary**: Summary in present tense. Not capitalized. No period at the end.
+
+## Documentation Maintenance
+
+When modifying the codebase, keep documentation in sync:
+- **ARCHITECTURE.md** - Update when adding/removing classes, changing component relationships, or altering data flow patterns
+- **README.md** - Update when adding new features, changing public APIs, or modifying usage examples
+- **Code comments** - Update inline documentation when changing method signatures or behavior
