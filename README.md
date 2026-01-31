@@ -1,5 +1,8 @@
 # CSV Utils
 
+[![CI](https://github.com/dougyouch/csv-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/dougyouch/csv-utils/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/dougyouch/csv-utils/graph/badge.svg)](https://codecov.io/gh/dougyouch/csv-utils)
+
 A Ruby library providing a comprehensive set of utilities for manipulating and processing CSV files. This library offers a robust set of tools for comparing, transforming, sorting, and managing CSV data efficiently.
 
 ## Features

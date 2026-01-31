@@ -5,6 +5,7 @@ require 'bundler'
 require 'json'
 require 'securerandom'
 require 'simplecov'
+require 'simplecov-cobertura'
 
 SimpleCov.start do
   enable_coverage :branch
@@ -15,6 +16,12 @@ SimpleCov.start do
   add_group 'CLI', 'bin'
 
   track_files 'lib/**/*.rb'
+
+  if ENV['CI']
+    formatter SimpleCov::Formatter::CoberturaFormatter
+  else
+    formatter SimpleCov::Formatter::HTMLFormatter
+  end
 end
 
 begin
