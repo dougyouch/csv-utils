@@ -15,16 +15,16 @@ OptionParser.new do |opts|
     exit
   end
 
-  opts.on('-u', '--unique HEADERS', 'Comman separated list of headers that genrate a unique key per a row, use 1st column by default') do |v|
+  opts.on('-u', '--unique HEADERS', 'Comma separated list of headers that generate a unique key per row, uses 1st column by default') do |v|
     options[:unique_headers] = v.split(',')
   end
 
-  opts.on('-i', '--ignore HEADERS', 'Comman separated list of headers to ignore during row comparison') do |v|
+  opts.on('-i', '--ignore HEADERS', 'Comma separated list of headers to ignore during row comparison') do |v|
     options[:ignore_headers] = v.split(',')
   end
 
   opts.on('--sort-batch-size SIZE', Integer, 'Number of rows to load into memory while sorting') do |v|
-    opts[:sort_batch_size] = v
+    options[:sort_batch_size] = v
   end
 end.parse!
 

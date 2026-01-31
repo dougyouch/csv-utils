@@ -26,7 +26,7 @@ csv = CSVUtils::CSVIterator.new(ARGV[0])
 
 missing_headers = options[:ignore_columns] - csv.first.keys
 unless missing_headers.empty?
-  raise("unkown headers #{missing_headers.join(', ')} configured ingnore headers")
+  raise("unknown headers #{missing_headers.join(', ')} in configured ignore headers")
 end
 
 hashed_rows = {}

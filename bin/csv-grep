@@ -34,7 +34,7 @@ OptionParser.new do |opts|
     options[:limit] = v
   end
 
-  opts.on('-i', '--ignore-case', 'Ignore case') do |v|
+  opts.on('-i', '--ignore-case', 'Ignore case') do
     options[:search_regex_options] = Regexp::IGNORECASE
   end
 end.parse!
@@ -55,7 +55,7 @@ search_regex =
 headers =
   case options[:headers]
   when :first
-    [csv .headers.first]
+    [csv.headers.first]
   when :all
     csv.headers
   else
@@ -63,7 +63,7 @@ headers =
   end
 
 missing_headers = headers - csv.headers
-raise("unknown headers #{headers.join(', ')}") unless missing_headers.empty?
+raise("unknown headers #{missing_headers.join(', ')}") unless missing_headers.empty?
 
 matching_row_proc = proc do |row|
   result = false

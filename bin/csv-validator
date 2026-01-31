@@ -29,53 +29,55 @@ def strip_bom!(col)
   col.sub!("\xEF\xBB\xBF".force_encoding('ASCII-8BIT'), '')
 end
 
-csv = CSV.open(ARGV[0], 'rb')
 id_column_name = ARGV[1]
-
-headers = csv.shift
-strip_bom!(headers[0])
-
-id_column_name ||= headers[0]
-unless headers.include?(id_column_name)
-  $stderr.puts("header #{id_column_name} not found in current set of headers")
-  exit 1
-end
-
-id_column_num = headers.index(id_column_name)
-
+csv = CSV.open(ARGV[0], 'rb')
 out = nil
-out_proc = Proc.new do |row|
-  out ||=
-    begin
-      out = CSV.open('utf8-correctsion.csv', 'wb')
-      out << [id_column_name, 'Row', 'Col', 'Header', 'Value']
-      out
-    end
 
-  out << row
-end
+begin
+  headers = csv.shift
+  strip_bom!(headers[0])
 
-csv_lineno = 1
-
-while (row = csv.shift)
-  csv_lineno += 1
-
-  unless row.size == headers.size
-    $stderr.puts "row(#{csv_lineno}): invalid number of columns, expected #{headers.size} got #{row.size}"
+  id_column_name ||= headers[0]
+  unless headers.include?(id_column_name)
+    $stderr.puts("header #{id_column_name} not found in current set of headers")
+    exit 1
   end
 
-  row.each_with_index do |col, idx|
-    next if col.nil? || utf8?(col)
+  id_column_num = headers.index(id_column_name)
 
-    $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: none UTF-8 characters found in \"#{col}\""
-    if (col_utf8_encoded = convert_to_utf8(col, detect_encoding(col)))
-      puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: converted to UTF-8 from #{detect_encoding(col)} \"#{col_utf8_encoded}\""
-      out_proc.call [row[id_column_num], csv_lineno, (idx + 1), headers[idx], col_utf8_encoded]
-    else
-      $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: unknown character encoding"
+  out_proc = proc do |row|
+    out ||=
+      begin
+        out = CSV.open('utf8-correction.csv', 'wb')
+        out << [id_column_name, 'Row', 'Col', 'Header', 'Value']
+        out
+      end
+
+    out << row
+  end
+
+  csv_lineno = 1
+
+  while (row = csv.shift)
+    csv_lineno += 1
+
+    unless row.size == headers.size
+      $stderr.puts "row(#{csv_lineno}): invalid number of columns, expected #{headers.size} got #{row.size}"
+    end
+
+    row.each_with_index do |col, idx|
+      next if col.nil? || utf8?(col)
+
+      $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: none UTF-8 characters found in \"#{col}\""
+      if (col_utf8_encoded = convert_to_utf8(col, detect_encoding(col)))
+        puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: converted to UTF-8 from #{detect_encoding(col)} \"#{col_utf8_encoded}\""
+        out_proc.call [row[id_column_num], csv_lineno, (idx + 1), headers[idx], col_utf8_encoded]
+      else
+        $stderr.puts "row(#{csv_lineno}),col(#{idx + 1}) #{headers[idx]}: unknown character encoding"
+      end
     end
   end
+ensure
+  csv.close
+  out&.close
 end
-
-csv.close
-out.close if out

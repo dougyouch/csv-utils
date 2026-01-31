@@ -114,16 +114,15 @@ OptionParser.new do |opts|
   end
 end.parse!
 
-file = File.open(ARGV[0], 'rb')
 lineno = ARGV[1].to_i
 number_of_lines = (ARGV[2] || 1).to_i
 
 raise "no lineno specified" unless lineno > 0
 
-headers = strip_byte_order_mark(file.readline.strip).split(',')
-
-data = headers.zip(parse_csv_row(file, lineno, number_of_lines))
-file.close
+data = File.open(ARGV[0], 'rb') do |file|
+  headers = strip_byte_order_mark(file.readline.strip).split(',')
+  headers.zip(parse_csv_row(file, lineno, number_of_lines))
+end
 
 cnt = 0
 data.each do |k, (v, status)|

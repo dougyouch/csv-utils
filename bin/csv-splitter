@@ -78,4 +78,4 @@ while (row = csv.shift)
   append_row_proc.call(row)
 end
 
-out.close
+out&.close
