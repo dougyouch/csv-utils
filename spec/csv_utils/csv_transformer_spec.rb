@@ -1,12 +1,14 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe CSVUtils::CSVTransformer do
   let(:src_csv) do
     [
-      ['ID', 'Name'],
-      ['319', 'Foo'],
-      ['91', 'Bar'],
-      ['19133158', 'Unknown']
+      %w[ID Name],
+      %w[319 Foo],
+      %w[91 Bar],
+      %w[19133158 Unknown]
     ]
   end
   let(:dest_csv) { [] }
@@ -25,21 +27,21 @@ describe CSVUtils::CSVTransformer do
 
     before { subject }
 
-    it { expect(src_csv_headers).to eq(['ID', 'Name']) }
+    it { expect(src_csv_headers).to eq(%w[ID Name]) }
   end
 
   context 'select' do
     subject do
       csv_transformer
         .read_headers
-        .select { |row, headers, additional_data| Hash[headers.zip(row)]['ID'] == '91' }
+        .select { |row, headers, _additional_data| headers.zip(row).to_h['ID'] == '91' }
         .process(2)
     end
 
     let(:expected_csv) do
       [
-        ['ID', 'Name'],
-        ['91', 'Bar']
+        %w[ID Name],
+        %w[91 Bar]
       ]
     end
 
@@ -52,15 +54,15 @@ describe CSVUtils::CSVTransformer do
     subject do
       csv_transformer
         .read_headers
-        .reject { |row, headers, additional_data| Hash[headers.zip(row)]['ID'] == '91' }
+        .reject { |row, headers, _additional_data| headers.zip(row).to_h['ID'] == '91' }
         .process(2)
     end
 
     let(:expected_csv) do
       [
-        ['ID', 'Name'],
-        ['319', 'Foo'],
-        ['19133158', 'Unknown']
+        %w[ID Name],
+        %w[319 Foo],
+        %w[19133158 Unknown]
       ]
     end
 
@@ -73,7 +75,7 @@ describe CSVUtils::CSVTransformer do
     subject do
       csv_transformer
         .read_headers
-        .map(['IDx2']) { |row, headers, additional_data| [(Hash[headers.zip(row)]['ID'].to_i * 2).to_s] }
+        .map(['IDx2']) { |row, headers, _additional_data| [(headers.zip(row).to_h['ID'].to_i * 2).to_s] }
         .process(2)
     end
 
@@ -95,8 +97,8 @@ describe CSVUtils::CSVTransformer do
     subject do
       csv_transformer
         .read_headers
-        .additional_data { |rows| rows.each_with_object({}) { |row, hsh| hsh[row[0]] = row[1].downcase + '@example.com' } }
-        .append(['Email']) { |row, headers, additional_data| [additional_data[row[0]]] }
+        .additional_data { |rows| rows.each_with_object({}) { |row, hsh| hsh[row[0]] = "#{row[1].downcase}@example.com" } }
+        .append(['Email']) { |row, _headers, additional_data| [additional_data[row[0]]] }
         .process(2)
     end
 
@@ -118,16 +120,16 @@ describe CSVUtils::CSVTransformer do
     subject do
       csv_transformer
         .read_headers
-        .each { |row, headers, additional_data| row + [1] }
+        .each { |row, _headers, _additional_data| row + [1] }
         .process(2)
     end
 
     let(:expected_csv) do
       [
-        ['ID', 'Name'],
-        ['319', 'Foo'],
-        ['91', 'Bar'],
-        ['19133158', 'Unknown']
+        %w[ID Name],
+        %w[319 Foo],
+        %w[91 Bar],
+        %w[19133158 Unknown]
       ]
     end
 
@@ -140,17 +142,17 @@ describe CSVUtils::CSVTransformer do
     subject do
       csv_transformer
         .read_headers
-        .each { |row, headers, additional_data| row + [1] }
-        .set_headers(['id', 'first_name'])
+        .each { |row, _headers, _additional_data| row + [1] }
+        .set_headers(%w[id first_name])
         .process(2)
     end
 
     let(:expected_csv) do
       [
-        ['id', 'first_name'],
-        ['319', 'Foo'],
-        ['91', 'Bar'],
-        ['19133158', 'Unknown']
+        %w[id first_name],
+        %w[319 Foo],
+        %w[91 Bar],
+        %w[19133158 Unknown]
       ]
     end
 

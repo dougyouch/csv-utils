@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe CSVUtils::CSVReport do
- let(:test_csv_row_class) do
-    kls = Class.new do
+  let(:test_csv_row_class) do
+    Class.new do
       include CSVUtils::CSVRow
 
       attr_accessor :id,
@@ -10,7 +12,7 @@ describe CSVUtils::CSVReport do
 
       csv_column :id, header: 'ID'
       csv_column(:name) { data[:name] }
-      csv_column :count, proc: Proc.new { data[:count] }
+      csv_column :count, proc: proc { data[:count] }
 
       def initialize(id, data)
         self.id = id
@@ -38,7 +40,7 @@ describe CSVUtils::CSVReport do
 
   let(:expected_csv_data) do
     [
-      ['ID', 'name', 'count'],
+      %w[ID name count],
       [test_id, name, count]
     ]
   end
@@ -72,7 +74,7 @@ describe CSVUtils::CSVReport do
     let(:csv_content) { File.read(csv) }
 
     before { subject }
-    after { File.unlink(csv) if File.exist?(csv) }
+    after { FileUtils.rm_f(csv) }
 
     it { expect(csv_content).to eq(expected_csv_content) }
   end

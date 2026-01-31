@@ -7,7 +7,7 @@ gem 'inheritance-helper'
 
 group :development do
   gem 'rake'
-  gem 'rubocop'
   gem 'rspec'
+  gem 'rubocop'
   gem 'simplecov'
 end

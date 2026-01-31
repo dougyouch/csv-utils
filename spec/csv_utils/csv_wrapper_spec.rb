@@ -21,7 +21,7 @@ describe CSVUtils::CSVWrapper do
   end
 
   after do
-    File.unlink(test_file) if File.exist?(test_file)
+    FileUtils.rm_f(test_file)
   end
 
   describe '#initialize' do
@@ -105,7 +105,7 @@ describe CSVUtils::CSVWrapper do
 
     after do
       subject.close
-      File.unlink(write_file) if File.exist?(write_file)
+      FileUtils.rm_f(write_file)
     end
 
     it 'writes rows to the CSV' do
@@ -150,7 +150,7 @@ describe CSVUtils::CSVWrapper do
     end
 
     after do
-      File.unlink(pipe_file) if File.exist?(pipe_file)
+      FileUtils.rm_f(pipe_file)
     end
 
     it 'respects csv_options like col_sep' do

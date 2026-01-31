@@ -1,0 +1,81 @@
+AllCops:
+  TargetRubyVersion: 3.2
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - 'bin/**/*'
+    - 'vendor/**/*'
+    - 'coverage/**/*'
+
+# Relaxed metrics for existing codebase
+Metrics/MethodLength:
+  Max: 35
+
+Metrics/AbcSize:
+  Max: 40
+
+Metrics/ClassLength:
+  Max: 200
+
+Metrics/CyclomaticComplexity:
+  Max: 15
+
+Metrics/PerceivedComplexity:
+  Max: 15
+
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*'
+    - '*.gemspec'
+
+# Style preferences
+Style/Documentation:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  EnforcedStyle: always
+
+Layout/LineLength:
+  Max: 130
+  Exclude:
+    - 'spec/**/*'
+
+# File naming - allow hyphenated gem name
+Naming/FileName:
+  Exclude:
+    - 'lib/csv-utils.rb'
+
+# Allow set_ prefix for transformer DSL methods
+Naming/AccessorMethodName:
+  Exclude:
+    - 'lib/csv_utils/csv_transformer.rb'
+
+# Allow Kernel#open for pipe support (intentional design)
+Security/Open:
+  Exclude:
+    - 'lib/csv_utils/csv_wrapper.rb'
+
+# Duplicate branches are intentional in comparison logic
+Lint/DuplicateBranch:
+  Exclude:
+    - 'lib/csv_utils/csv_compare.rb'
+    - 'lib/csv_utils/csv_sort.rb'
+
+# Allow empty blocks in specs (used for testing iteration behavior)
+Lint/EmptyBlock:
+  Exclude:
+    - 'spec/**/*'
+
+# Style relaxations for existing code patterns
+Style/OptionalBooleanParameter:
+  Enabled: false
+
+Style/StringConcatenation:
+  Enabled: false
+
+Style/FormatStringToken:
+  Enabled: false
+
+# Gemspec settings
+Gemspec/RequiredRubyVersion:
+  Enabled: false

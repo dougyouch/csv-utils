@@ -13,6 +13,7 @@ Gem::Specification.new do |s|
   s.bindir      = 'bin'
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
 
-  s.add_runtime_dependency 'csv'
-  s.add_runtime_dependency 'inheritance-helper'
+  s.add_dependency 'csv'
+  s.add_dependency 'inheritance-helper'
+  s.metadata['rubygems_mfa_required'] = 'true'
 end

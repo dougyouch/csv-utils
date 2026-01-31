@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe CSVUtils::CSVRow do
   let(:test_csv_row_class) do
-    kls = Class.new do
+    Class.new do
       include CSVUtils::CSVRow
 
       attr_accessor :id,
@@ -10,7 +12,7 @@ describe CSVUtils::CSVRow do
 
       csv_column :id, header: 'ID'
       csv_column(:name) { data[:name] }
-      csv_column :count, proc: Proc.new { data[:count] }
+      csv_column :count, proc: proc { data[:count] }
 
       def initialize(id, data)
         self.id = id
@@ -35,7 +37,7 @@ describe CSVUtils::CSVRow do
   context 'csv_headers' do
     subject { test_csv_row.csv_headers }
 
-    it { is_expected.to eq(['ID', 'name', 'count']) }
+    it { is_expected.to eq(%w[ID name count]) }
   end
 
   context 'csv_row' do

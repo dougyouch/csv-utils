@@ -21,7 +21,7 @@ describe CSVUtils::CSVIterator do
   end
 
   after do
-    File.unlink(test_file) if File.exist?(test_file)
+    FileUtils.rm_f(test_file)
   end
 
   describe CSVUtils::CSVIterator::RowWrapper do
@@ -66,8 +66,7 @@ describe CSVUtils::CSVIterator do
     subject { described_class.new(test_file) }
 
     it 'yields RowWrapper objects for each data row' do
-      yielded_rows = []
-      subject.each { |row| yielded_rows << row }
+      yielded_rows = subject.map { |row| row }
 
       expect(yielded_rows.size).to eq(3)
       expect(yielded_rows[0]).to be_a(CSVUtils::CSVIterator::RowWrapper)
@@ -77,8 +76,7 @@ describe CSVUtils::CSVIterator do
     end
 
     it 'sets correct line numbers' do
-      line_numbers = []
-      subject.each { |row| line_numbers << row.lineno }
+      line_numbers = subject.map(&:lineno)
 
       expect(line_numbers).to eq([2, 3, 4])
     end
@@ -89,11 +87,9 @@ describe CSVUtils::CSVIterator do
     end
 
     it 'can be called multiple times (rewinds)' do
-      first_pass = []
-      subject.each { |row| first_pass << row['id'] }
+      first_pass = subject.map { |row| row['id'] }
 
-      second_pass = []
-      subject.each { |row| second_pass << row['id'] }
+      second_pass = subject.map { |row| row['id'] }
 
       expect(first_pass).to eq(second_pass)
     end
@@ -244,7 +240,7 @@ describe CSVUtils::CSVIterator do
     end
 
     after do
-      File.unlink(bom_file) if File.exist?(bom_file)
+      FileUtils.rm_f(bom_file)
     end
 
     context 'in binary mode' do
@@ -281,14 +277,13 @@ describe CSVUtils::CSVIterator do
     end
 
     after do
-      File.unlink(empty_file) if File.exist?(empty_file)
+      FileUtils.rm_f(empty_file)
     end
 
     subject { described_class.new(empty_file) }
 
     it 'returns empty for each' do
-      yielded = []
-      subject.each { |row| yielded << row }
+      yielded = subject.map { |row| row }
       expect(yielded).to be_empty
     end
 

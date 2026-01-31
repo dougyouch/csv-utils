@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe CSVUtils::CSVSort do
@@ -15,14 +17,18 @@ describe CSVUtils::CSVSort do
     file
   end
   let(:new_csv_file) { 'csv_utils_csv_sort_spec.sorted.csv' }
-  let(:new_csv_nums) { rows = CSV.read(new_csv_file); rows.shift; rows.map! { |row| row.first.to_i } }
+  let(:new_csv_nums) do
+    rows = CSV.read(new_csv_file)
+    rows.shift
+    rows.map! { |row| row.first.to_i }
+  end
   let(:has_headers) { true }
   let(:csv_options) { {} }
   let(:csv_sorter) { CSVUtils::CSVSort.new(csv_file, new_csv_file, has_headers, csv_options) }
 
   after do
-    File.unlink(csv_file) if File.exist?(csv_file)
-    File.unlink(new_csv_file) if File.exist?(new_csv_file)
+    FileUtils.rm_f(csv_file)
+    FileUtils.rm_f(new_csv_file)
   end
 
   context 'sort' do

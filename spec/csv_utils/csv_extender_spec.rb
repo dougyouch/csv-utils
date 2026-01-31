@@ -1,12 +1,14 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe CSVUtils::CSVExtender do
-  let(:src_headers) { ['id', 'name'] }
+  let(:src_headers) { %w[id name] }
   let(:src_rows) do
     [
-      ['3', 'four'],
-      ['9', 'ten'],
-      ['19', 'twenty']
+      %w[3 four],
+      %w[9 ten],
+      %w[19 twenty]
     ]
   end
   let(:csv_file) do
@@ -22,16 +24,16 @@ describe CSVUtils::CSVExtender do
   let(:csv_extender) { CSVUtils::CSVExtender.new(csv_file, new_csv_file, csv_options) }
 
   after do
-    File.unlink(csv_file) if File.exist?(csv_file)
-    File.unlink(new_csv_file) if File.exist?(new_csv_file)
+    FileUtils.rm_f(csv_file)
+    FileUtils.rm_f(new_csv_file)
   end
 
   context 'append' do
     let(:additional_headers) { ['count1'] }
-    subject { csv_extender.append(additional_headers) { |row, headers| [1] } }
+    subject { csv_extender.append(additional_headers) { |_row, _headers| [1] } }
     let(:expected_new_csv) do
       [
-        (src_headers + additional_headers),
+        (src_headers + additional_headers)
       ] + src_rows.map { |row| row + ['1'] }
     end
     before { subject }
@@ -41,10 +43,10 @@ describe CSVUtils::CSVExtender do
 
   context 'append_in_batches' do
     let(:additional_headers) { ['count1'] }
-    subject { csv_extender.append_in_batches(additional_headers) { |batch, headers| batch.map { [1] } } }
+    subject { csv_extender.append_in_batches(additional_headers) { |batch, _headers| batch.map { [1] } } }
     let(:expected_new_csv) do
       [
-        (src_headers + additional_headers),
+        (src_headers + additional_headers)
       ] + src_rows.map { |row| row + ['1'] }
     end
     before { subject }
@@ -52,4 +54,3 @@ describe CSVUtils::CSVExtender do
     it { expect(CSV.read(new_csv_file)).to eq(expected_new_csv) }
   end
 end
-

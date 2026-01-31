@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'inheritance-helper'
 
 module CSVUtils
@@ -38,7 +40,7 @@ module CSVUtils
     def csv_row
       self.class.csv_columns.values.map { |column_options| csv_column_value(column_options) }
     end
-    alias_method :to_a, :csv_row
+    alias to_a csv_row
 
     def csv_headers
       self.class.csv_headers

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'csv'
 
 # Collection of tools for working with CSV files.

@@ -1,35 +1,35 @@
+# frozen_string_literal: true
+
 # Auto detect a csv files options
 module CSVUtils
   class CSVOptions
-
     # this list is from https://en.wikipedia.org/wiki/Byte_order_mark
     BYTE_ORDER_MARKS = {
-      "\xEF\xBB\xBF".force_encoding('ASCII-8BIT') => 'UTF-8',
-      "\xFE\xFF".force_encoding('ASCII-8BIT') => 'UTF-16',
-      "\xFF\xFE".force_encoding('ASCII-8BIT') => 'UTF-16',
-      "\x00\x00\xFE\xFF".force_encoding('ASCII-8BIT') => 'UTF-32',
-      "\xFF\xFE\x00\x00".force_encoding('ASCII-8BIT') => 'UTF-32'
-    }
+      (+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT') => 'UTF-8',
+      (+"\xFE\xFF").force_encoding('ASCII-8BIT') => 'UTF-16',
+      (+"\xFF\xFE").force_encoding('ASCII-8BIT') => 'UTF-16',
+      (+"\x00\x00\xFE\xFF").force_encoding('ASCII-8BIT') => 'UTF-32',
+      (+"\xFF\xFE\x00\x00").force_encoding('ASCII-8BIT') => 'UTF-32'
+    }.freeze
 
     COL_SEPARATORS = [
       "\x02",
       "\t",
       '|',
       ','
-    ]
+    ].freeze
 
     ROW_SEPARATORS = [
       "\r\n",
       "\n",
       "\r"
-    ]
+    ].freeze
 
     attr_reader :columns,
                 :byte_order_mark,
                 :encoding,
                 :col_separator,
                 :row_separator
-    
 
     def initialize(io)
       line =

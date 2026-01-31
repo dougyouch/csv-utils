@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 describe CSVUtils::CSVOptions do
@@ -10,14 +12,14 @@ describe CSVUtils::CSVOptions do
     }
   end
   let(:byte_order_mark) { '' }
-  let(:first_heading) { byte_order_mark + 'ID' }
+  let(:first_heading) { "#{byte_order_mark}ID" }
   let(:headings) { [first_heading, 'Name'] }
   let(:csv_row) { headings.map { |_| SecureRandom.uuid } }
   let(:csv) do
     CSV.generate(**options) do |csv|
       csv << headings
       csv << csv_row
-    end.force_encoding('ASCII-8BIT')
+    end.dup.force_encoding('ASCII-8BIT')
   end
   let(:io) { StringIO.new(csv) }
   let(:csv_options) { CSVUtils::CSVOptions.new(io) }
@@ -48,7 +50,7 @@ describe CSVUtils::CSVOptions do
     it { is_expected.to eq('UTF-8') }
 
     describe 'with UTF-8 byte order mark' do
-      let(:byte_order_mark) { "\xEF\xBB\xBF".force_encoding('ASCII-8BIT') }
+      let(:byte_order_mark) { (+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT') }
 
       it { is_expected.to eq('UTF-8') }
     end
@@ -56,7 +58,7 @@ describe CSVUtils::CSVOptions do
 
   context 'columns' do
     subject { csv_options.columns }
-    let(:byte_order_mark) { "\xEF\xBB\xBF".force_encoding('ASCII-8BIT') }
+    let(:byte_order_mark) { (+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT') }
 
     it { is_expected.to eq(2) }
   end

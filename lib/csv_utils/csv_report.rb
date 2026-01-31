@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Builds a csv file from csv rows
 module CSVUtils
   class CSVReport
