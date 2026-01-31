@@ -10,6 +10,7 @@ module CSVUtils
   autoload :CSVOptions, 'csv_utils/csv_options'
   autoload :CSVReport, 'csv_utils/csv_report'
   autoload :CSVRow, 'csv_utils/csv_row'
+  autoload :CSVRowMatcher, 'csv_utils/csv_row_matcher'
   autoload :CSVSort, 'csv_utils/csv_sort'
   autoload :CSVTransformer, 'csv_utils/csv_transformer'
   autoload :CSVWrapper, 'csv_utils/csv_wrapper'
