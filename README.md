@@ -12,6 +12,7 @@ A Ruby library providing a comprehensive set of utilities for manipulating and p
 - **CSV Sorting**: Sort large CSV files using external merge sort
 - **CSV Reporting**: Generate CSV reports from Ruby objects
 - **CSV Row**: Mixin for defining CSV-serializable objects
+- **CSV Row Matcher**: Filter CSV rows using regex patterns across columns
 - **CSV Iteration**: Efficient iteration over CSV files with batch support
 - **CSV Extension**: Extend CSV files with additional columns
 - **CSV Options**: Auto-detect CSV file properties (separators, encoding, BOM)
@@ -205,6 +206,36 @@ end
 
 # Build a lookup hash
 lookup = iterator.to_hash('id', 'name')  # { 'id_value' => 'name_value', ... }
+```
+
+### Matching CSV Rows
+
+Filter CSV rows using regex patterns:
+
+```ruby
+require 'csv-utils'
+
+# Match against all columns
+matcher = CSVUtils::CSVRowMatcher.new(/error/i)
+
+# Or match only specific columns
+matcher = CSVUtils::CSVRowMatcher.new(/error/i, ['status', 'message'])
+
+# Use with iteration
+iterator = CSVUtils::CSVIterator.new('logs.csv')
+error_rows = iterator.select(&matcher)
+
+# Use directly
+row = { 'id' => '123', 'status' => 'Error', 'message' => 'Connection failed' }
+matcher.match?(row)  # => true
+```
+
+The matcher can be used with any Enumerable method via `to_proc`:
+
+```ruby
+rows.select(&matcher)  # rows matching the pattern
+rows.reject(&matcher)  # rows not matching the pattern
+rows.find(&matcher)    # first matching row
 ```
 
 ### Extending CSV Files
