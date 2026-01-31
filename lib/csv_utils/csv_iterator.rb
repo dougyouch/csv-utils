@@ -5,6 +5,14 @@ module CSVUtils
   class CSVIterator
     include Enumerable
 
+    BYTE_ORDER_MARKS = [
+      (+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT'),       # UTF-8
+      (+"\xFE\xFF").force_encoding('ASCII-8BIT'),           # UTF-16 BE
+      (+"\xFF\xFE").force_encoding('ASCII-8BIT'),           # UTF-16 LE
+      (+"\x00\x00\xFE\xFF").force_encoding('ASCII-8BIT'),   # UTF-32 BE
+      (+"\xFF\xFE\x00\x00").force_encoding('ASCII-8BIT')    # UTF-32 LE
+    ].freeze
+
     attr_reader :prev_row
 
     class RowWrapper < Hash
@@ -98,7 +106,12 @@ module CSVUtils
     private
 
     def strip_bom!(col)
-      col.sub!((+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT'), '')
+      BYTE_ORDER_MARKS.each do |bom|
+        if col.start_with?(bom)
+          col.sub!(bom, '')
+          break
+        end
+      end
     end
   end
 end

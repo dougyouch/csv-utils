@@ -81,7 +81,7 @@ module CSVUtils
     end
 
     def strip_byte_order_marks(header)
-      @byte_order_marks ? header.sub(@byte_order_marks, '') : header
+      @byte_order_mark ? header.sub(@byte_order_mark, '') : header
     end
   end
 end

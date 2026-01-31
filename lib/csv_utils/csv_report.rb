@@ -10,8 +10,9 @@ module CSVUtils
       @csv =
         if csv.is_a?(String)
           @must_close = true
-          mode = csv_options.delete(:mode) || 'wb'
-          CSV.open(csv, mode, **csv_options)
+          opts = csv_options.dup
+          mode = opts.delete(:mode) || 'wb'
+          CSV.open(csv, mode, **opts)
         else
           @must_close = false
           csv
