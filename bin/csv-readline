@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'optparse'
 
@@ -8,62 +9,65 @@ def strip_byte_order_mark(line)
   CSVUtils::ByteOrderMark.strip(line)
 end
 
-def csv_parse_line(line)
-  columns = []
+# Splits a raw line on commas, flagging columns with a quote CSV would reject, so a malformed line can be read.
+class LineParser
+  def initialize(line)
+    @line = line
+    @columns = []
+    @opened_quote = false
+    @pos = -1
+    @last_comma_pos = -1
+  end
 
-  opened_quote = false
-  pos = -1
-  last_comma_pos = -1
-  column = 1
+  # @return [Array<Array(String, Symbol)>] each column's raw value and :ok or :stray_quote
+  def parse
+    while (@pos = @line.index(/[",\n]/, @pos + 1))
+      @line[@pos] == '"' ? quote : separator
+    end
+    @columns
+  end
 
-  while pos = line.index(/([",\n])/, pos + 1)
-    case line[pos]
-    when '"'
-      if opened_quote
-        if line[pos+1] == ',' ||
-           line[pos+1] == "\r" ||
-           line[pos+1] == "\n" ||
-           line[pos+1].nil?
-          opened_quote = false
-        elsif line[pos+1] == '"'
-          pos += 1 # correctly escaped
-        else
-          col_end = line.index(/,/, pos + 1)
-          col_end ||= line.size - 1
-          # slice out the column value
-          val = line[last_comma_pos + 1, col_end - last_comma_pos - 1]
-          columns << [val, :stray_quote]
-          opened_quote = false
-          last_comma_pos = col_end
-          pos = col_end
-          # return columns
-        end
-      else
-        if (last_comma_pos == -1 && pos != 0) ||
-           (last_comma_pos != -1 && line[pos-1] != ',')
-          col_end = line.index(/,/, pos + 1)
-          col_end ||= line.size - 1
-          # slice out the column value
-          val = line[last_comma_pos + 1, col_end - last_comma_pos - 1]
-          columns << [val, :stray_quote]
-          opened_quote = false
-          last_comma_pos = col_end
-          pos = col_end
-        else
-          opened_quote = true
-        end
-      end
-    when ',',
-         "\n"
-      if ! opened_quote
-        column += 1
-        columns << [line[last_comma_pos + 1, pos - last_comma_pos - 1], :ok]
-        last_comma_pos = pos
-      end
+  private
+
+  def quote
+    if @opened_quote
+      closing_quote
+    elsif column_start?
+      @opened_quote = true
+    else
+      stray_quote
     end
   end
 
-  columns
+  def closing_quote
+    following = @line[@pos + 1]
+    if following.nil? || [',', "\r", "\n"].include?(following)
+      @opened_quote = false
+    elsif following == '"'
+      @pos += 1 # correctly escaped
+    else
+      stray_quote
+    end
+  end
+
+  def column_start?
+    @last_comma_pos == -1 ? @pos.zero? : @line[@pos - 1] == ','
+  end
+
+  # the column runs to the next comma, quotes and all
+  def stray_quote
+    col_end = @line.index(',', @pos + 1) || (@line.size - 1)
+    @columns << [@line[@last_comma_pos + 1, col_end - @last_comma_pos - 1], :stray_quote]
+    @opened_quote = false
+    @last_comma_pos = @pos = col_end
+  end
+
+  def separator
+    return if @opened_quote
+
+    @columns << [@line[@last_comma_pos + 1, @pos - @last_comma_pos - 1], :ok]
+    @last_comma_pos = @pos
+  end
 end
 
 def empty_column?(col)
@@ -80,11 +84,12 @@ def parse_csv_row(file, lineno, number_of_lines)
   file.each do |line|
     cnt += 1
     next if cnt < lineno
+
     str << line
     number_of_lines -= 1
-    break if number_of_lines == 0
+    break if number_of_lines.zero?
   end
-  csv_parse_line(str)
+  LineParser.new(str).parse
 end
 
 options = {
@@ -106,7 +111,7 @@ end.parse!
 lineno = ARGV[1].to_i
 number_of_lines = (ARGV[2] || 1).to_i
 
-raise "no lineno specified" unless lineno > 0
+raise 'no lineno specified' unless lineno.positive?
 
 data = File.open(ARGV[0], 'rb') do |file|
   headers = strip_byte_order_mark(file.readline.strip).split(',')
@@ -117,9 +122,10 @@ cnt = 0
 data.each do |k, (v, status)|
   cnt += 1
   next if !options[:all_columns] && empty_column?(v)
+
   if status == :ok
-    puts sprintf('  %-3d %s: %s', cnt, k, v)
+    puts format('  %-3d %s: %s', cnt, k, v)
   else
-    puts sprintf('* %-3d (%s) %s: %s', cnt, status.to_s.gsub('_', ' '), k, v)
+    puts format('* %-3d (%s) %s: %s', cnt, status.to_s.gsub('_', ' '), k, v)
   end
 end

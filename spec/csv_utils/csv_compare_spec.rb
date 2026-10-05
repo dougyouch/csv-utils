@@ -184,4 +184,49 @@ describe CSVUtils::CSVCompare do
       end
     end
   end
+
+  context 'order and header checks' do
+    let(:dir) { Dir.mktmpdir }
+    let(:primary) { File.join(dir, 'primary.csv') }
+    let(:secondary) { File.join(dir, 'secondary.csv') }
+    let(:update_columns) { nil }
+    let(:comparer) { CSVUtils::CSVCompare.new(primary, update_columns) { |src, dest| src['id'].to_i <=> dest['id'].to_i } }
+
+    before do
+      File.write(primary, "id,name\n1,a\n3,c\n2,b\n")
+      File.write(secondary, "id,name\n1,a\n2,\"two\nlines\"\n4,d\n")
+    end
+
+    after { FileUtils.remove_entry(dir) }
+
+    it 'raises when a file is out of order' do
+      expect { comparer.compare(secondary) { |*| nil } }.to raise_error(CSVUtils::UnsortedFileError) do |error|
+        expect(error.message).to eq("#{primary} isn't sorted: the record on line 4 sorts before the one above it")
+        expect(error.file).to eq(primary)
+        expect(error.lineno).to eq(4)
+        expect(error).to be_a(CSVUtils::Error)
+      end
+    end
+
+    it 'skips the check when turned off' do
+      results = []
+      comparer.compare(secondary, check_order: false) { |action, record| results << [action, record['id']] }
+      expect(results).to include([:create, '3'])
+    end
+
+    it 'yields records that know the line they start on' do
+      File.write(primary, "id,name\n1,a\n4,d\n")
+      results = []
+      comparer.compare(secondary) { |action, record| results << [action, record['id'], record.lineno] }
+      expect(results).to eq([[:delete, '2', 3]])
+    end
+
+    describe 'with an update column missing from a file' do
+      let(:update_columns) { ['date'] }
+
+      it 'raises instead of never reporting updates' do
+        expect { comparer.compare(secondary) { |*| nil } }.to raise_error(CSVUtils::HeaderNotFoundError, /header date not found/)
+      end
+    end
+  end
 end

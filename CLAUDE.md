@@ -27,12 +27,14 @@ This is a Ruby gem (`csv-utils`) providing utilities for manipulating and debugg
 - **CSVOptions** - Auto-detects CSV file properties: column separator, row separator, byte order marks, and encoding. Handles various separators (`\x02`, `\t`, `|`, `,`) and BOMs (UTF-8, UTF-16, UTF-32). `to_csv_options` gives matching CSV options, including an `encoding:` that reads UTF-8 strings.
 - **EncodingOptions** - The one encoding rule: `read` defaults `encoding:` to `'bom|utf-8'`, `write` uses the decoded encoding. Every class that opens a path goes through it.
 - **CSVWrapper** - Resource-safe wrapper around Ruby's CSV class that manages file handle lifecycle.
-- **CSVCompare** - Compares two sorted CSV files, yielding `:create`, `:update`, or `:delete` actions.
-- **CSVSort** - Sorts CSV files by specified columns.
+- **CSVCompare** - Compares two sorted CSV files, yielding `:create`, `:update`, or `:delete` actions; raises on unsorted input and missing update columns.
+- **CSVSort** - External merge sort; `sort` (comparison block) or `sort_by` (key once per row), merging up to MERGE_WIDTH temp files per pass.
 - **CSVTransformer** - Applies row transformations with block-based processing.
 - **CSVExtender** - Extends CSV files with additional columns/data.
 - **CSVReport** - Generates reports from CSV data.
 - **CSVIterator** - Efficient CSV iteration; opens a path per call and closes it afterwards. `CSVIterator.auto_detect(path)` uses CSVOptions.
+- **RowReader** - Reads rows tracking the physical line each starts on (CSV counts rows), strips the first row's BOM, wraps parse errors in MalformedRowError. Used by CSVIterator and CSVCompare.
+- **Errors** - `Error` module included by `HeaderNotFoundError`, `UnsortedFileError` (both RuntimeError) and `MalformedRowError` (CSV::MalformedCSVError).
 - **CSVRow** - Mixin declaring how an object becomes a CSV row (`csv_column`), used with CSVReport.
 - **CSVRowMatcher** - Regex matcher for row hashes, usable as a block via `to_proc`.
 
@@ -51,7 +53,9 @@ Standalone utilities for CSV debugging and manipulation:
 - `csv-duplicate-finder` - Finds duplicate rows
 - `csv-change-eol` - Converts line endings
 
-Scripts are excluded from RuboCop and tested as subprocesses in `spec/bin/` via `spec/support/bin_helper.rb`.
+Scripts are linted by RuboCop (`bin/*` is in `AllCops: Include`) and tested as subprocesses in `spec/bin/` via `spec/support/bin_helper.rb`.
+
+`script/benchmark.rb` times CSVIterator, CSVSort and CSVCompare and counts allocations (`ROWS=`, `BATCH_SIZE=`, and `LIB=` to point at another checkout). Run it before and after changes to the hot paths.
 
 ### Dependencies
 

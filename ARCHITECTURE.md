@@ -31,6 +31,9 @@ csv-utils is a Ruby gem providing utilities for manipulating, debugging, and pro
 │  ┌─────────────┐  ┌──────────────┐  ┌─────────────────┐         │
 │  │ CSVWrapper  │  │ CSVIterator  │  │ EncodingOptions │         │
 │  └─────────────┘  └──────────────┘  └─────────────────┘         │
+│  ┌─────────────┐                                                │
+│  │  RowReader  │  physical lines, BOM, MalformedRowError        │
+│  └─────────────┘                                                │
 │  Enumerable, RowWrapper; read/write encoding rule               │
 ├─────────────────────────────────────────────────────────────────┤
 │  Processing Layer                                               │
@@ -96,20 +99,36 @@ Enumerable wrapper for CSV reading:
 - `each_batch(size)`: Yields rows in configurable batches
 - `to_hash(key, value)`: Builds lookup hash from CSV columns
 - `each` without a block returns an Enumerator
-- Tracks `prev_row` for error context
+- Reads through `RowReader`, so `RowWrapper#lineno` is the physical line a row starts on and `prev_row` is the raw row before the current one
 - Opens a path through `CSVWrapper.open` for each call and closes it in an `ensure`, so idle iterators hold no file handle and calls can nest; a CSV passed in is rewound and left open. Only a passed-in CSV is rewound, since rewinding moves back in front of a BOM the `BOM|` mode skipped, and the BOM is stripped from the first row whether it is read as headers or data
 - `RowWrapper.create` fills the hash with an index loop rather than `headers.zip(row)`, avoiding an array per column per row
-- `CSVIterator.auto_detect(path)` builds an iterator from `CSVOptions`
+- `CSVIterator.auto_detect(path, full_scan: false)` builds an iterator from `CSVOptions`
+- `to_hash` raises `HeaderNotFoundError` for an unknown header
+
+### RowReader (I/O)
+
+Wraps a CSV positioned at its first line and is shared by `CSVIterator` and `CSVCompare`:
+- `shift` returns the next row and sets `lineno`, the physical line it starts on: the previous row's end plus one, where each row's end adds the row separators in its raw text (`CSV#line`). CSV's own `lineno` and error line numbers count rows, which fall behind after a quoted line break
+- Strips the byte order mark from the first row, whether it's headers or data
+- Re-raises `CSV::MalformedCSVError` as `MalformedRowError` (a subclass) with the physical line and the last good row. `CSV::InvalidEncodingError` passes through: CSV raises it when it buffers the bytes, ahead of the rows before them, and its line is already physical
+
+### Errors
+
+`CSVUtils::Error` is a module every raised exception includes, so `rescue CSVUtils::Error` catches them all, while each class keeps the superclass callers rescued before it existed:
+- `HeaderNotFoundError < RuntimeError` (`header`, `headers`), from `CSVIterator#to_hash` and `CSVCompare#compare`
+- `UnsortedFileError < RuntimeError` (`file`, `lineno`), from `CSVCompare#compare`
+- `MalformedRowError < CSV::MalformedCSVError` (`line_number`, `prev_row`), from `RowReader`
 - An empty file has `[]` headers; an empty first header cell stays `nil`
 
 ### CSVSort (Processing)
 
 External merge sort for large files:
-1. **Chunking**: Reads file in batches (default 100,000 rows)
-2. **Sort chunks**: Each batch sorted in memory, written to `.part.N` temp files
-3. **Merge**: Temp files merged pairwise into `.merge.N` files until one remains
-4. **Cleanup**: Merged inputs are deleted as it goes and the final file is moved to the destination. Files stay in `@csv_part_files` until merged, so an `ensure` removes every temp file when sorting fails
-5. **Default order**: Without a block, rows are compared as arrays (`<=>`)
+1. **Chunking**: Reads the file in batches (default 100,000 rows) with `each_slice`
+2. **Sort chunks**: Each batch is sorted in memory (`sort!` with the block, or `sort_by!` with the key for `sort_by`) and written to a `<output>.N.tmp` file in `tmp_dir`, the output's directory by default
+3. **Merge**: Each pass merges consecutive groups of up to `MERGE_WIDTH` (64) files. A merge keeps the next row of every file in an array sorted by key (binary search insertion) and writes the smallest; ties go to the earlier file, so equal keys keep batch order. Up to 64 batches take one pass; the old pairwise merge took log2(batches) passes over the whole file
+4. **Keys**: `sort` uses the row as its key and the block as the comparison; `sort_by` computes the key once per row and compares keys with `<=>`
+5. **Cleanup**: Merged inputs are deleted after each merge and the final file is moved to the destination. Every temp file is tracked, so an `ensure` removes them all when sorting fails
+6. **Default order**: Without a block, rows are compared as arrays (`<=>`)
 
 ### CSVTransformer (Processing)
 
@@ -137,6 +156,9 @@ Compares two **pre-sorted** CSV files:
 - Optional `csv_options` passed to `CSV.open` for both files
 - Both files must be sorted by the same key columns
 - Holds one record from each file and advances whichever side is behind until both run out, so the last record of the longer file is always yielded
+- Reads through `RowReader`; records are `CSVIterator::RowWrapper`s, so they know their line
+- Checks each file's order by comparing each record with the previous one in the same file, raising `UnsortedFileError`. The check is enabled per file only when the block compares its first record equal to itself, which a block written for different headers in each file doesn't; `check_order: false` turns it off
+- Raises `HeaderNotFoundError` when an update comparison column is missing from either file
 
 ### CSVReport (Analysis)
 
@@ -173,7 +195,7 @@ Standalone executables for CSV debugging:
 | `csv-duplicate-finder` | Identifies duplicate rows |
 | `csv-change-eol` | Converts line endings |
 
-The scripts are excluded from RuboCop and covered by subprocess specs in `spec/bin/` (`spec/support/bin_helper.rb` runs them in a temp directory with this checkout's `lib`). `csv-validator`, `csv-duplicate-finder` and `csv-change-eol` open files as `rb:BINARY`: csv 3.3+ reads plain `'rb'` files as UTF-8 when the default external encoding is UTF-8, and those tools need the raw bytes. `csv-find-error` runs the `csv-readline` next to it rather than one on the PATH.
+The scripts are linted by RuboCop (`bin/*` is included explicitly, since they have no `.rb` extension) and covered by subprocess specs in `spec/bin/` (`spec/support/bin_helper.rb` runs them in a temp directory with this checkout's `lib`). `csv-validator`, `csv-duplicate-finder` and `csv-change-eol` open files as `rb:BINARY`: csv 3.3+ reads plain `'rb'` files as UTF-8 when the default external encoding is UTF-8, and those tools need the raw bytes. `csv-find-error` runs the `csv-readline` next to it rather than one on the PATH, passing the physical line from `MalformedRowError`. `csv-find-error`, `csv-grep`, `csv-diff`, `csv-splitter` and `csv-explorer` detect separators and encodings with `CSVOptions`; `csv-splitter` writes parts under temporary names in one pass and renames them once it knows how many there are.
 
 ## Encodings
 

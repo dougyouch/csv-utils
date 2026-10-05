@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'optparse'
 
@@ -15,7 +16,8 @@ OptionParser.new do |opts|
     exit
   end
 
-  opts.on('-u', '--unique HEADERS', 'Comma separated list of headers that generate a unique key per row, uses 1st column by default') do |v|
+  opts.on('-u', '--unique HEADERS',
+          'Comma separated list of headers that generate a unique key per row, uses 1st column by default') do |v|
     options[:unique_headers] = v.split(',')
   end
 
@@ -29,30 +31,38 @@ OptionParser.new do |opts|
 end.parse!
 
 unless ARGV.size == 2
-  $stderr.puts('Usage: ' + File.basename(__FILE__) + ' [options] <csv file 1> <csv file 2>')
+  warn('Usage: ' + File.basename(__FILE__) + ' [options] <csv file 1> <csv file 2>')
   exit 1
 end
 
 require 'csv-utils'
 
-csv1 = CSVUtils::CSVIterator.new(ARGV[0])
-csv2 = CSVUtils::CSVIterator.new(ARGV[1])
+csv1_options = CSVUtils::CSVOptions.new(ARGV[0]).to_csv_options
+csv2_options = CSVUtils::CSVOptions.new(ARGV[1]).to_csv_options
+unless csv1_options[:col_sep] == csv2_options[:col_sep]
+  warn("column separators do not match #{ARGV[0]} #{csv1_options[:col_sep].inspect}, " \
+       "#{ARGV[1]} #{csv2_options[:col_sep].inspect}")
+  exit 1
+end
+
+csv1 = CSVUtils::CSVIterator.new(ARGV[0], csv1_options)
+csv2 = CSVUtils::CSVIterator.new(ARGV[1], csv2_options)
 headers = csv1.headers
 
 unless headers == csv2.headers
-  $stderr.puts("headers do not match #{ARGV[0]} headers #{headers}, #{ARGV[1]} headers #{csv2.headers}")
+  warn("headers do not match #{ARGV[0]} headers #{headers}, #{ARGV[1]} headers #{csv2.headers}")
   exit 1
 end
 
 unknown_unique_headers = options[:unique_headers] - headers
 unless unknown_unique_headers.empty?
-  $stderr.puts("specified unique headers are unknown #{unknown_unique_headers}")
+  warn("specified unique headers are unknown #{unknown_unique_headers}")
   exit 1
 end
 
 unknown_ignore_headers = options[:ignore_headers] - headers
 unless unknown_ignore_headers.empty?
-  $stderr.puts("specified headers to ignore are unknown #{unknown_ignore_headers}")
+  warn("specified headers to ignore are unknown #{unknown_ignore_headers}")
   exit 1
 end
 
@@ -62,38 +72,40 @@ puts "uniqueness header(s) are #{options[:unique_headers].join(', ')}"
 
 unique_header_indexes = options[:unique_headers].map { |header| headers.index(header) }
 
-# empty cells are nil, so values are compared as strings
-sort_compare_proc = proc do |csv1_row, csv2_row|
-  result = unique_header_indexes.map { |idx| csv1_row[idx].to_s } <=> unique_header_indexes.map { |idx| csv2_row[idx].to_s }
-  result = csv1_row.map(&:to_s) <=> csv2_row.map(&:to_s) if result.zero?
-  result
+# empty cells are nil, so values are compared as strings; the key is computed once per row
+sort_key_proc = proc do |row|
+  [unique_header_indexes.map { |idx| row[idx].to_s }, row.map(&:to_s)]
 end
 
 csv1_sorted_file_name = ARGV[0] + '.sorted'
 csv2_sorted_file_name = ARGV[1] + '.sorted'
 
 puts "sorting #{ARGV[0]}"
-sorter = CSVUtils::CSVSort.new(ARGV[0], csv1_sorted_file_name)
-sorter.sort(options[:sort_batch_size], &sort_compare_proc)
+sorter = CSVUtils::CSVSort.new(ARGV[0], csv1_sorted_file_name, true, csv1_options)
+sorter.sort_by(options[:sort_batch_size], &sort_key_proc)
 
 puts "sorting #{ARGV[1]}"
-sorter = CSVUtils::CSVSort.new(ARGV[1], csv2_sorted_file_name)
-sorter.sort(options[:sort_batch_size], &sort_compare_proc)
+sorter = CSVUtils::CSVSort.new(ARGV[1], csv2_sorted_file_name, true, csv2_options)
+sorter.sort_by(options[:sort_batch_size], &sort_key_proc)
 
 update_comparison_columns = headers - options[:unique_headers] - options[:ignore_headers]
 
-comparer = CSVUtils::CSVCompare.new(csv1_sorted_file_name, update_comparison_columns) do |csv1_row, csv2_row|
-  options[:unique_headers].map { |header| csv1_row[header].to_s } <=> options[:unique_headers].map { |header| csv2_row[header].to_s }
+# the sorted files are written in the decoded encoding, with the same separators
+sorted_options = CSVUtils::EncodingOptions.write(csv1_options)
+comparer = CSVUtils::CSVCompare.new(csv1_sorted_file_name, update_comparison_columns, sorted_options) do |csv1_row, csv2_row|
+  options[:unique_headers].map { |header| csv1_row[header].to_s } <=> options[:unique_headers].map do |header|
+    csv2_row[header].to_s
+  end
 end
 
 stats = Hash.new(0)
 puts "comparing #{ARGV[0]} with #{ARGV[1]}"
 diff_file_name = 'diff-results-' + File.basename(ARGV[0])
 CSV.open(diff_file_name, 'wb') do |out|
-  out << ['Result'] + headers
+  out << (['Result'] + headers)
   comparer.compare(csv2_sorted_file_name) do |action, record|
     stats[action] += 1
-    out << [action] + record.values
+    out << ([action] + record.values)
   end
 end
 puts "differences found #{stats}"
@@ -102,7 +114,7 @@ File.unlink(csv1_sorted_file_name)
 File.unlink(csv2_sorted_file_name)
 
 if stats.empty?
-  puts "files were identical"
+  puts 'files were identical'
   File.unlink(diff_file_name)
 else
   puts "results can be found in #{diff_file_name}"

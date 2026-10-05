@@ -54,6 +54,16 @@ module CSVUtils
       csv.shift
     end
 
+    # @return [String, nil] the raw text of the last row read, with its row separator
+    def line
+      csv.line
+    end
+
+    # @return [String] the row separator, detected from the file when it was :auto
+    def row_sep
+      csv.row_sep
+    end
+
     # Moves back to the first row.
     # @return [void]
     def rewind

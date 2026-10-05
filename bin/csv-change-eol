@@ -1,26 +1,27 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'csv'
 
 def bold_string(str)
   "\033[1m#{str}\033[0m"
 end
-  
-USAGE = "Usage: #{bold_string('csv-change-eol')} <csv_file> <end of line character sequence in hex>"
+
+USAGE = "Usage: #{bold_string('csv-change-eol')} <csv_file> <end of line character sequence in hex>".freeze
 
 def exit_on_error(msg)
-  $stderr.print <<STR
-Error: #{bold_string(msg)}
+  $stderr.print <<~STR
+    Error: #{bold_string(msg)}
 
-#{USAGE}
+    #{USAGE}
 
-  End of line example: '7C5E7C0A' is '|^|\\n'
-   - 0A is new line
-   - 0D is carriage return
+      End of line example: '7C5E7C0A' is '|^|\\n'
+       - 0A is new line
+       - 0D is carriage return
 
-  Goto: #{bold_string('http://www.asciitable.com/')} for help with the character sequence
+      Goto: #{bold_string('http://www.asciitable.com/')} for help with the character sequence
 
-STR
+  STR
   exit 1
 end
 

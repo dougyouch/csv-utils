@@ -1,22 +1,23 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
-require 'csv'
+require 'csv-utils'
 require 'rbconfig'
 
 file = ARGV[0] || abort('Usage: csv-find-error <csv file>')
 
-prev_row = nil
+iterator = CSVUtils::CSVIterator.auto_detect(file)
 begin
-  CSV.open(file, 'rb') { |csv| csv.each { |row| prev_row = row } }
+  iterator.each { |_row| nil }
 rescue CSV::MalformedCSVError => e
-  puts e.class.to_s + ': ' + e.message
-  puts "previous row was #{prev_row}"
-  if e.message =~ /line (\d+)/
-    lineno = $1.to_i
-    # run the csv-readline next to this script, with this gem's lib, rather than whichever is on the PATH
-    puts "running csv-readline #{file} #{lineno}"
-    system(RbConfig.ruby, '-I', File.expand_path('../lib', __dir__), File.join(__dir__, 'csv-readline'), file, lineno.to_s)
-  end
+  puts "#{e.class}: #{e.message}"
+  # CSV raises encoding errors ahead of the rows before them, so only a malformed row has a reliable previous row
+  puts "previous row was #{e.prev_row}" if e.is_a?(CSVUtils::MalformedRowError)
+  # line_number is the physical line the bad row starts on, which is what csv-readline reads
+  puts "running csv-readline #{file} #{e.line_number}"
+  # run the csv-readline next to this script, with this gem's lib, rather than whichever is on the PATH
+  system(RbConfig.ruby, '-I', File.expand_path('../lib', __dir__), File.join(__dir__, 'csv-readline'), file,
+         e.line_number.to_s)
   exit 1
 end
 

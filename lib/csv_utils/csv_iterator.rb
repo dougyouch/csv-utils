@@ -13,12 +13,10 @@ module CSVUtils
     # @return [Array<String>] the byte order marks stripped from the first header, as binary strings
     BYTE_ORDER_MARKS = ByteOrderMark::ENCODINGS.keys.freeze
 
-    # @return [Array<String>, nil] the raw row read before the current one, for debugging malformed rows
-    attr_reader :prev_row
-
     # A row as a hash of header to value that knows its line number in the file.
     class RowWrapper < Hash
-      # @return [Integer] line number of the row in the file, counting the header row as line 1
+      # @return [Integer] line the row starts on in the file, counting the header row as line 1. A quoted value
+      #   with a line break spans several lines, so this can differ from the row's position in the file.
       attr_accessor :lineno
 
       # @param headers [Array<String>]
@@ -52,9 +50,10 @@ module CSVUtils
     # @example
     #   CSVUtils::CSVIterator.auto_detect('export.tsv').each { |row| puts row['name'] }
     # @param path [String]
+    # @param full_scan [Boolean] check the encoding of the whole file, not only its first megabyte
     # @return [CSVIterator]
-    def self.auto_detect(path)
-      options = CSVOptions.new(path)
+    def self.auto_detect(path, full_scan: false)
+      options = CSVOptions.new(path, full_scan: full_scan)
       new(path, options.to_csv_options)
     end
 
@@ -68,10 +67,19 @@ module CSVUtils
       @csv_options = EncodingOptions.read(csv_options)
     end
 
+    # The raw row read before the current one (the header row for the first row), for debugging;
+    # after a full pass it's the last row.
+    # @return [Array<String>, nil]
+    def prev_row
+      @reader&.prev_row
+    end
+
     # Yields each row from the start of the file.
     # @param headers [Array<String>, nil] headers to use; by default the first row is read as the headers
     # @yieldparam row [RowWrapper]
     # @return [Enumerator, nil] an enumerator without a block
+    # @raise [MalformedRowError] for a row CSV can't parse, with the line it starts on and {#prev_row}
+    # @raise [CSV::InvalidEncodingError] for bytes that don't match the encoding, with their line
     def each(headers = nil, &)
       return enum_for(:each, headers) unless block_given?
 
@@ -89,11 +97,11 @@ module CSVUtils
     # @param value [String, nil] header whose value is the hash value
     # @yieldparam row [RowWrapper] used instead of value to compute the hash value
     # @return [Hash]
-    # @raise [RuntimeError] when key or value isn't a header
+    # @raise [HeaderNotFoundError] when key or value isn't a header
     def to_hash(key, value = nil, &)
       file_headers = headers
-      raise("header #{key} not found in #{file_headers}") unless file_headers.include?(key)
-      raise("headers #{value} not found in #{file_headers}") if value && !file_headers.include?(value)
+      raise HeaderNotFoundError.new(key, file_headers) unless file_headers.include?(key)
+      raise HeaderNotFoundError.new(value, file_headers) if value && !file_headers.include?(value)
 
       value_proc =
         if value
@@ -152,33 +160,16 @@ module CSVUtils
     end
 
     def each_row(csv, headers)
-      @prev_row = nil
-      row = shift_first_row(csv)
-      lineno = 1
-      unless headers
-        headers = row || []
-        row = csv.shift
-        lineno += 1
-      end
-
-      while row
-        yield RowWrapper.create(headers, row, lineno)
-        @prev_row = row
-        row = csv.shift
-        lineno += 1
+      @reader = RowReader.new(csv)
+      headers ||= @reader.shift || []
+      while (row = @reader.shift)
+        yield RowWrapper.create(headers, row, @reader.lineno)
       end
     end
 
     # an empty file has no headers, and an empty first header cell is nil
     def read_headers(csv)
-      shift_first_row(csv) || []
-    end
-
-    # the first row without the byte order mark, whether it's read as headers or as data
-    def shift_first_row(csv)
-      row = csv.shift
-      row[0] = ByteOrderMark.strip(row[0]) if row && row[0]
-      row
+      RowReader.new(csv).shift || []
     end
   end
 end

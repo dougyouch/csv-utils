@@ -2,8 +2,12 @@ AllCops:
   TargetRubyVersion: 3.3
   NewCops: enable
   SuggestExtensions: false
+  Include:
+    - '**/*.rb'
+    - 'bin/*'
+    - '**/*.gemspec'
+    - '**/Gemfile'
   Exclude:
-    - 'bin/**/*'
     - 'vendor/**/*'
     - 'coverage/**/*'
 

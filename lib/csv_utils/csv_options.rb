@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 module CSVUtils
-  # Detects the separators, byte order mark, encoding and column count of a CSV file from its first line.
+  # Detects the separators, byte order mark, encoding and column count of a CSV file from its header row
+  # and, for the encoding, its first {SAMPLE_SIZE} bytes or, with full_scan, all of them.
   #
   # @example
   #   options = CSVUtils::CSVOptions.new('data.csv')
@@ -10,12 +11,14 @@ module CSVUtils
     # @return [Hash{String => String}] byte order marks, as binary strings, to the encoding they indicate
     BYTE_ORDER_MARKS = ByteOrderMark::ENCODINGS
 
-    # @return [Array<String>] column separators to look for, the first one found in the line wins
+    # @return [Array<String>] column separators to look for; the one found most often outside quotes in the
+    #   header row wins, and on a tie the one listed first
     COL_SEPARATORS = [
       "\x02",
       "\t",
       '|',
-      ','
+      ',',
+      ';'
     ].freeze
 
     # @return [Array<String>] row separators to look for, the first one found in the line wins
@@ -37,12 +40,19 @@ module CSVUtils
     # @return [Integer] bytes read to detect the encoding of a file without a byte order mark
     SAMPLE_SIZE = 1024 * 1024
 
+    QUOTED = /"[^"]*"/n
+    # the header row: up to the first line break outside quotes
+    HEADER_ROW = /\A(?:[^"\r\n]|"[^"]*")*(?:\r\n|\n|\r)?/n
+    LINE_BREAK = /\r\n|\n|\r/n
+    private_constant :QUOTED, :HEADER_ROW, :LINE_BREAK
+
     # @return [Integer, nil] number of headers, nil without a column separator
     attr_reader :columns
     # @return [String, nil] the byte order mark the file starts with, as a binary string
     attr_reader :byte_order_mark
-    # @return [String] 'UTF-8', 'UTF-16' or 'UTF-32' from the byte order mark; without one, from the bytes of
-    #   the first {SAMPLE_SIZE} bytes: 'UTF-8', 'Windows-1252' or 'ISO-8859-1' (see {CharacterEncoding.detect})
+    # @return [String] 'UTF-8', 'UTF-16' or 'UTF-32' from the byte order mark; without one, from the first
+    #   {SAMPLE_SIZE} bytes, or all of them with full_scan: 'UTF-8', 'Windows-1252' or 'ISO-8859-1'
+    #   (see {CharacterEncoding.detect})
     attr_reader :encoding
     # @return [String, nil] one of {COL_SEPARATORS}
     attr_reader :col_separator
@@ -50,16 +60,20 @@ module CSVUtils
     attr_reader :row_separator
 
     # @param io [String, IO] path of the file, or an IO positioned at its first line; up to {SAMPLE_SIZE}
-    #   bytes are read from it
-    def initialize(io)
-      sample = read_sample(io)
-      line = first_line(sample)
+    #   bytes are read from it, or all of it with full_scan
+    # @param full_scan [Boolean] check the encoding of the whole file, in {SAMPLE_SIZE} chunks, for files whose
+    #   first bytes that aren't UTF-8 may come after the sample
+    def initialize(io, full_scan: false)
+      open_io(io) do |input|
+        sample = input.read(SAMPLE_SIZE) || ''
+        line = first_line(sample)
 
-      @col_separator = auto_detect_col_sep(line)
-      @row_separator = auto_detect_row_sep(line)
-      @byte_order_mark = get_byte_order_mark(line)
-      @encoding = get_character_encoding(@byte_order_mark, sample)
-      @columns = get_number_of_columns(line) if @col_separator
+        @col_separator = auto_detect_col_sep(line)
+        @row_separator = auto_detect_row_sep(line)
+        @byte_order_mark = get_byte_order_mark(line)
+        @encoding = get_character_encoding(@byte_order_mark, sample, full_scan ? input : nil)
+        @columns = get_number_of_columns(line) if @col_separator
+      end
     end
 
     # Whether both separators were found. An empty file, or a single line without a newline, isn't valid.
@@ -86,10 +100,14 @@ module CSVUtils
     end
 
     # @api private
-    # @param line [String]
-    # @return [String, nil]
+    # @param line [String] the header row
+    # @return [String, nil] the separator found most often outside quotes, nil when there's none
     def auto_detect_col_sep(line)
-      COL_SEPARATORS.detect { |sep| line.include?(sep) }
+      unquoted = line.b.gsub(QUOTED, '')
+      counts = COL_SEPARATORS.map { |sep| unquoted.count(sep) }
+      return if counts.max.zero?
+
+      COL_SEPARATORS[counts.index(counts.max)]
     end
 
     # @api private
@@ -127,9 +145,13 @@ module CSVUtils
     # @api private
     # @param bom [String, nil]
     # @param sample [String] bytes from the start of the file
+    # @param rest [IO, nil] the rest of the file, to scan it all
     # @return [String]
-    def get_character_encoding(bom, sample)
-      BYTE_ORDER_MARKS[bom] || CharacterEncoding.detect(sample)
+    def get_character_encoding(bom, sample, rest = nil)
+      return BYTE_ORDER_MARKS[bom] if bom
+      return CharacterEncoding.detect_stream(chunks(sample, rest)) if rest
+
+      CharacterEncoding.detect(sample, truncated: sample.bytesize == SAMPLE_SIZE)
     end
 
     # @api private
@@ -142,19 +164,26 @@ module CSVUtils
     private
 
     # an empty file reads as an empty sample, which makes the options invalid
-    def read_sample(io)
-      sample = (io.is_a?(String) ? File.open(io, 'rb') { |file| file.read(SAMPLE_SIZE) } : io.read(SAMPLE_SIZE)) || ''
-      sample.bytesize < SAMPLE_SIZE ? sample : drop_last_multibyte_char(sample)
+    def open_io(io, &)
+      io.is_a?(String) ? File.open(io, 'rb', &) : yield(io)
     end
 
-    # a full sample can end mid-character, so its last multibyte character, whole or not, is dropped
-    def drop_last_multibyte_char(sample)
-      sample.sub(/[\xC0-\xFF][\x80-\xBF]*\z/n, '')
+    def chunks(sample, rest)
+      Enumerator.new do |chunks|
+        chunks << sample
+        while (chunk = rest.read(SAMPLE_SIZE))
+          chunks << chunk
+        end
+      end
     end
 
+    # The header row, which a quoted line break doesn't end. A stray quote falls back to the first line.
     def first_line(sample)
-      line_end = sample.index("\n")
-      line_end ? sample.byteslice(0, line_end + 1) : sample
+      line = sample.b[HEADER_ROW]
+      return line if line.bytesize == sample.bytesize || line.end_with?("\n", "\r")
+
+      line_break = sample.b.match(LINE_BREAK)
+      line_break ? sample.b.byteslice(0, line_break.end(0)) : sample.b
     end
 
     def wide_encoding?

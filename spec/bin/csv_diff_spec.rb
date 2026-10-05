@@ -70,4 +70,27 @@ describe 'bin/csv-diff' do
       expect(err).to include('<csv file 1> <csv file 2>')
     end
   end
+
+  context 'with tab separated files' do
+    let(:old_csv) { "id\tname\n1\ta\n2\tb\n" }
+    let(:new_csv) { "id\tname\n2\tc\n1\ta\n" }
+
+    it 'detects the separator' do
+      _out, err, status = run_script('csv-diff', 'old.csv', 'new.csv')
+      expect(err).to eq('')
+      expect(status).to be_success
+      expect(results).to eq([%w[Result id name], %w[update 2 b]])
+    end
+  end
+
+  context 'with different separators' do
+    let(:old_csv) { "id\tname\n1\ta\n" }
+    let(:new_csv) { "id,name\n1,a\n" }
+
+    it 'exits with an error' do
+      _out, err, status = run_script('csv-diff', 'old.csv', 'new.csv')
+      expect(status).not_to be_success
+      expect(err).to include('column separators do not match')
+    end
+  end
 end
