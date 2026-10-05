@@ -1,13 +1,26 @@
 # frozen_string_literal: true
 
-# Utility class for appending data to a csv file.
 module CSVUtils
+  # Copies a CSV file to a new one with extra columns added to every row.
+  #
+  # @example
+  #   extender = CSVUtils::CSVExtender.new('input.csv', 'output.csv')
+  #   extender.append(['name_length']) { |row, headers| [row[headers.index('name')].size] }
   class CSVExtender
+    # @param src_csv [String, CSV, #shift] path or CSV to read; paths are opened and closed by the extender
+    # @param dest_csv [String, CSV, #<<] path or CSV to write
+    # @param csv_options [Hash] options passed to CSV.open for paths
     def initialize(src_csv, dest_csv, csv_options = {})
       @src_csv = CSVUtils::CSVWrapper.new(src_csv, 'rb', csv_options)
       @dest_csv = CSVUtils::CSVWrapper.new(dest_csv, 'wb', csv_options)
     end
 
+    # Appends columns one row at a time, then closes the files it opened.
+    # @param additional_headers [Array<String>, nil] headers to add; nil when the source has no header row
+    # @yieldparam row [Array<String>] the source row
+    # @yieldparam headers [Array<String>, nil] the source headers
+    # @yieldreturn [Array] values to append to the row
+    # @return [void]
     def append(additional_headers)
       process(additional_headers) do |current_headers|
         while (row = @src_csv.shift)
@@ -17,6 +30,14 @@ module CSVUtils
       end
     end
 
+    # Appends columns a batch of rows at a time, for lookups that are cheaper in bulk
+    # (ex: one database query per batch), then closes the files it opened.
+    # @param additional_headers [Array<String>, nil] headers to add; nil when the source has no header row
+    # @param batch_size [Integer] rows per batch
+    # @yieldparam batch [Array<Array<String>>] the source rows
+    # @yieldparam headers [Array<String>, nil] the source headers
+    # @yieldreturn [Array<Array>] values to append, one array per row in the batch
+    # @return [void]
     def append_in_batches(additional_headers, batch_size = 1_000)
       process(additional_headers) do |current_headers|
         batch = []

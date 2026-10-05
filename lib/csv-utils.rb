@@ -2,7 +2,8 @@
 
 require 'csv'
 
-# Collection of tools for working with CSV files.
+# Tools for comparing, sorting, transforming and debugging CSV files, including ones too large to load
+# into memory. Each class is autoloaded on first use.
 module CSVUtils
   autoload :ByteOrderMark, 'csv_utils/byte_order_mark'
   autoload :CSVCompare, 'csv_utils/csv_compare'

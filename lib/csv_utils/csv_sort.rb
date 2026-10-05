@@ -2,15 +2,28 @@
 
 require 'fileutils'
 
-# Utility class for sorting the rows for a csv file
 module CSVUtils
+  # Sorts a CSV file too large to load into memory with an external merge sort: batches of rows are
+  # sorted into temporary part files next to the new file, which are then merged in pairs.
+  #
+  # @example
+  #   CSVUtils::CSVSort.new('input.csv', 'sorted.csv').sort { |a, b| a[0].to_i <=> b[0].to_i }
   class CSVSort
-    attr_reader :csv_file,
-                :new_csv_file,
-                :has_headers,
-                :csv_options,
-                :headers
+    # @return [String] path of the file to sort
+    attr_reader :csv_file
+    # @return [String] path of the sorted file to write
+    attr_reader :new_csv_file
+    # @return [Boolean] whether the first row is a header row, kept at the top
+    attr_reader :has_headers
+    # @return [Hash] options passed to CSV.open
+    attr_reader :csv_options
+    # @return [Array<String>, nil] the header row, once {#sort} has read it
+    attr_reader :headers
 
+    # @param csv_file [String] path of the file to sort
+    # @param new_csv_file [String] path of the sorted file to write
+    # @param has_headers [Boolean] whether the first row is a header row
+    # @param csv_options [Hash] options passed to CSV.open
     def initialize(csv_file, new_csv_file, has_headers = true, csv_options = {})
       @csv_file = csv_file
       @new_csv_file = new_csv_file
@@ -19,7 +32,12 @@ module CSVUtils
       @csv_part_files = []
     end
 
-    # without a block, rows are compared as arrays of strings
+    # Writes the sorted file. Temporary files are removed even when sorting fails.
+    # @param batch_size [Integer] rows held in memory and sorted at a time
+    # @yieldparam row1 [Array<String>]
+    # @yieldparam row2 [Array<String>]
+    # @yieldreturn [Integer] negative, 0 or positive like <=>; without a block rows are compared as arrays
+    # @return [void]
     def sort(batch_size = 100_000, &block)
       block ||= proc { |row1, row2| row1 <=> row2 }
       @csv_part_files = []

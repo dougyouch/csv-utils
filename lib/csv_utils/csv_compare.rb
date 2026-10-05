@@ -1,24 +1,42 @@
 # frozen_string_literal: true
 
-# CSVUtils::CSVCompare purpose is to determine which rows in the secondary_data_file need to be created, deleted or updated
-# **requires both CSV files to be sorted on the same columns, CSVUtils::CSVSort can accomplish this
-# In order to receive updates, update_comparison_columns must configured or use inheritance and change the update_row? method
 module CSVUtils
+  # Compares two CSV files sorted on the same key and yields what it takes to make the secondary file
+  # match the primary one: records to create, update or delete. Sort both files first, {CSVSort} can do it.
+  #
+  # Updates are only reported for the update_comparison_columns; subclass and override update_row? for other rules.
+  #
+  # @example
+  #   comparer = CSVUtils::CSVCompare.new('primary.csv', ['updated_at']) { |src, dest| src['id'].to_i <=> dest['id'].to_i }
+  #   comparer.compare('secondary.csv') { |action, record| puts "#{action} #{record['id']}" }
   class CSVCompare
-    # primary_data_file is the source of truth
-    # compare_proc used to compare the id column(s)
-    # update_comparison_columns column(s) to compare for equality, ex: updated_at, timestamp, hash
-    #  caveat: update_comparison_columns need to be in both csv files
-    attr_reader :primary_data_file,
-                :update_comparison_columns,
-                :compare_proc
+    # @return [String] path of the source of truth
+    attr_reader :primary_data_file
+    # @return [Array<String>, nil] columns, present in both files, that trigger an update when they differ
+    #   (ex: updated_at, a timestamp or a hash of the row)
+    attr_reader :update_comparison_columns
+    # @return [Proc] compares the key columns of a primary and a secondary record, returning -1, 0 or 1
+    attr_reader :compare_proc
 
+    # @param primary_data_file [String] path of the source of truth
+    # @param update_comparison_columns [Array<String>, nil] columns compared on matching records;
+    #   without them no updates are yielded
+    # @yieldparam src [Hash{String => String}] record from the primary file
+    # @yieldparam dest [Hash{String => String}] record from the secondary file
+    # @yieldreturn [Integer] negative, 0 or positive like <=>, using the same order both files are sorted by
     def initialize(primary_data_file, update_comparison_columns = nil, &block)
       @primary_data_file = primary_data_file
       @update_comparison_columns = update_comparison_columns
       @compare_proc = block
     end
 
+    # Walks both files and yields each difference.
+    # @param secondary_data_file [String] path of the file to bring in line with the primary file
+    # @yieldparam action [Symbol] :create (only in the primary file), :update (in both, with changed
+    #   update_comparison_columns) or :delete (only in the secondary file)
+    # @yieldparam record [Hash{String => String}] the primary record for :create and :update,
+    #   the secondary record for :delete
+    # @return [void]
     def compare(secondary_data_file, &)
       open_csv(primary_data_file) do |src, src_headers|
         open_csv(secondary_data_file) do |dest, dest_headers|
