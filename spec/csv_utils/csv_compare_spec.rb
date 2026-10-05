@@ -153,4 +153,35 @@ describe CSVUtils::CSVCompare do
       expect(ObjectSpace.each_object(File).none? { |f| !f.closed? && f.path == primary_data_file }).to eq(true)
     end
   end
+
+  context 'with csv options' do
+    let(:compare_proc) { proc { |src, dest| src['id'].to_i <=> dest['id'].to_i } }
+    let(:csv_compare) { CSVUtils::CSVCompare.new(primary_data_file, ['name'], csv_options, &compare_proc) }
+
+    describe 'tab separated files' do
+      let(:csv_options) { { col_sep: "\t" } }
+      let(:csv_file1) { File.write('csv_file1_spec.csv', "id\tname\n1\ta\n2\tb\n") && 'csv_file1_spec.csv' }
+      let(:csv_file2) { File.write('csv_file2_spec.csv', "id\tname\n1\tchanged\n3\tc\n") && 'csv_file2_spec.csv' }
+
+      it 'reads both files with them' do
+        expect(compare_results).to eq(
+          [
+            [:update, { 'id' => '1', 'name' => 'a' }],
+            [:create, { 'id' => '2', 'name' => 'b' }],
+            [:delete, { 'id' => '3', 'name' => 'c' }]
+          ]
+        )
+      end
+    end
+
+    describe 'binary encoding' do
+      let(:csv_options) { { encoding: 'BINARY' } }
+      let(:csv_file1) { File.binwrite('csv_file1_spec.csv', "\xEF\xBB\xBFid,name\n1,caf\xE9\n".b) && 'csv_file1_spec.csv' }
+      let(:csv_file2) { File.binwrite('csv_file2_spec.csv', "id,name\n1,cafe\n".b) && 'csv_file2_spec.csv' }
+
+      it 'compares bytes that are not valid utf-8 and strips the byte order mark' do
+        expect(compare_results).to eq([[:update, { 'id' => '1', 'name' => "caf\xE9".b }]])
+      end
+    end
+  end
 end

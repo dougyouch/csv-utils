@@ -115,6 +115,7 @@ Compares two **pre-sorted** CSV files:
 - Yields `:create`, `:update`, `:delete` actions
 - Requires a comparison proc for row identity
 - Optional `update_comparison_columns` to detect changes (e.g., `updated_at`)
+- Optional `csv_options` passed to `CSV.open` for both files
 - Both files must be sorted by the same key columns
 - Holds one record from each file and advances whichever side is behind until both run out, so the last record of the longer file is always yielded
 
@@ -157,7 +158,7 @@ The scripts are excluded from RuboCop and covered by subprocess specs in `spec/b
 
 ## Encodings
 
-The library opens files with mode `'rb'` and no explicit encoding. Under csv 3.3+ with a UTF-8 default external encoding, CSV then applies `bom|utf-8`, so values are UTF-8 strings and invalid bytes raise `CSV::InvalidEncodingError`. `CSVIterator` takes a `mode` argument (`'rb:BINARY'` for raw bytes) and `CSVSort`, `CSVExtender` and `CSVTransformer` take CSV options (e.g. `encoding:`); `CSVCompare` always uses `'rb'`.
+The library opens files with mode `'rb'` and no explicit encoding. Under csv 3.3+ with a UTF-8 default external encoding, CSV then applies `bom|utf-8`, so values are UTF-8 strings and invalid bytes raise `CSV::InvalidEncodingError`. `CSVIterator` takes a `mode` argument (`'rb:BINARY'` for raw bytes) and `CSVCompare`, `CSVSort`, `CSVExtender` and `CSVTransformer` take CSV options (e.g. `encoding: 'BINARY'`).
 
 ## Data Flow Patterns
 

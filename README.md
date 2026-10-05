@@ -67,6 +67,12 @@ comparator.compare('secondary.csv') do |action, record|
 end
 ```
 
+Pass CSV options as the third argument to read both files with them, e.g. tab separated files:
+
+```ruby
+CSVUtils::CSVCompare.new('primary.tsv', ['updated_at'], col_sep: "\t") { |src, dest| src['id'] <=> dest['id'] }
+```
+
 **Note**: Both CSV files must be sorted by the same key columns for comparison to work correctly, and the block must compare them in that same order.
 
 The block compares the key columns of a primary and a secondary record like `<=>`. Records only in the primary file are yielded as `:create`, records only in the secondary file as `:delete`, and matching records as `:update` when any of the update comparison columns differ. Without update comparison columns, no updates are yielded.
@@ -301,11 +307,15 @@ Headers are parsed as a CSV row, so a quoted header like `"Last, First"` counts 
 
 ### Encodings and Byte Order Marks
 
-Files are opened with mode `'rb'`. With csv 3.3 and later, when Ruby's default external encoding is UTF-8 (the usual case), CSV reads `'rb'` files as UTF-8 and raises `CSV::InvalidEncodingError` on bytes that aren't valid UTF-8. To read a file's bytes as is, pass a mode with an explicit encoding where the class takes one:
+Files are opened with mode `'rb'`. With csv 3.3 and later, when Ruby's default external encoding is UTF-8 (the usual case), CSV reads `'rb'` files as UTF-8 and raises `CSV::InvalidEncodingError` on bytes that aren't valid UTF-8. To read a file's bytes as is, pass an explicit encoding:
 
 ```ruby
 iterator = CSVUtils::CSVIterator.new('latin1.csv', {}, 'rb:BINARY')
+comparator = CSVUtils::CSVCompare.new('primary.csv', ['updated_at'], encoding: 'BINARY') { |src, dest| src['id'] <=> dest['id'] }
+sorter = CSVUtils::CSVSort.new('input.csv', 'output.csv', true, encoding: 'BINARY')
 ```
+
+`CSVSort`, `CSVExtender` and `CSVTransformer` take CSV options as their last argument and `CSVIterator` takes them second; they're passed to `CSV.open` for file paths.
 
 `CSVUtils::ByteOrderMark` detects and strips UTF-8, UTF-16 and UTF-32 byte order marks; `CSVIterator`, `CSVCompare` and `CSVOptions` use it to clean the first header.
 

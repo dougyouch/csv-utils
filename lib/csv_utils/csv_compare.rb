@@ -17,16 +17,21 @@ module CSVUtils
     attr_reader :update_comparison_columns
     # @return [Proc] compares the key columns of a primary and a secondary record, returning -1, 0 or 1
     attr_reader :compare_proc
+    # @return [Hash] options passed to CSV.open for both files
+    attr_reader :csv_options
 
     # @param primary_data_file [String] path of the source of truth
     # @param update_comparison_columns [Array<String>, nil] columns compared on matching records;
     #   without them no updates are yielded
+    # @param csv_options [Hash] options passed to CSV.open for both files, ex: col_sep: "\t",
+    #   or encoding: 'BINARY' to read bytes that aren't valid UTF-8
     # @yieldparam src [Hash{String => String}] record from the primary file
     # @yieldparam dest [Hash{String => String}] record from the secondary file
     # @yieldreturn [Integer] negative, 0 or positive like <=>, using the same order both files are sorted by
-    def initialize(primary_data_file, update_comparison_columns = nil, &block)
+    def initialize(primary_data_file, update_comparison_columns = nil, csv_options = {}, &block)
       @primary_data_file = primary_data_file
       @update_comparison_columns = update_comparison_columns
+      @csv_options = csv_options
       @compare_proc = block
     end
 
@@ -83,7 +88,7 @@ module CSVUtils
     end
 
     def open_csv(file)
-      csv = CSV.open(file, 'rb')
+      csv = CSV.open(file, 'rb', **csv_options)
       yield csv, read_headers(csv)
     ensure
       csv&.close
