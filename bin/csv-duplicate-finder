@@ -13,31 +13,34 @@ OptionParser.new do |opts|
     exit
   end
 
-  opts.on('-i', '--ignore HEADERS', 'Comman separated list of headers to ignore') do |v|
+  opts.on('-i', '--ignore HEADERS', 'Comma separated list of headers to ignore') do |v|
     options[:ignore_columns] = v.split(',')
   end
 end.parse!
 
 require 'digest/sha2'
-require 'json'
 require 'csv-utils'
 
-csv = CSVUtils::CSVIterator.new(ARGV[0])
+file = ARGV[0] || raise('no CSV file specified')
 
-missing_headers = options[:ignore_columns] - csv.first.keys
+# read bytes as is, so values that aren't valid UTF-8 can still be compared
+csv = CSVUtils::CSVIterator.new(file, {}, 'rb:BINARY')
+
+missing_headers = options[:ignore_columns] - csv.headers
 unless missing_headers.empty?
   raise("unknown headers #{missing_headers.join(', ')} in configured ignore headers")
 end
 
 hashed_rows = {}
 
-csv.each_with_index do |row, idx|
+# rows are keyed by their line number in the file
+csv.each do |row|
   options[:ignore_columns].each do |ignore_column|
     row[ignore_column] = ''
   end
-  key = Digest::SHA256.hexdigest(row.to_json)
+  key = Digest::SHA256.hexdigest(row.values.to_csv)
   hashed_rows[key] ||= []
-  hashed_rows[key] << idx
+  hashed_rows[key] << row.lineno
 end
 
 duplicate_rows = {}
@@ -52,18 +55,18 @@ hashed_rows.each do |key, row_numbers|
   end
 end
 
-csv.each_with_index do |row, idx|
-  next unless (key = duplicate_rows[idx])
+csv.each do |row|
+  next unless (key = duplicate_rows[row.lineno])
 
-  hashed_rows[key][idx] = row
+  hashed_rows[key][row.lineno] = row
 end
 
-CSV.open('duplicates-' + File.basename(ARGV[0]), 'wb') do |out|
-  out << ['duplicate_key', 'row_no'] + csv.first.keys
+CSV.open('duplicates-' + File.basename(file), 'wb:BINARY') do |out|
+  out << ['duplicate_key', 'line_no'] + csv.headers
 
   hashed_rows.each do |key, rows|
-    rows.each do |idx, row|
-      out << [key, idx] + row.values
+    rows.each do |lineno, row|
+      out << [key, lineno] + row.values
     end
   end
 end
