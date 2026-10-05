@@ -31,6 +31,8 @@ module CSVUtils
     end
 
     def each(headers = nil)
+      return enum_for(:each, headers) unless block_given?
+
       @src_csv.rewind
 
       lineno = 0

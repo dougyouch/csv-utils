@@ -322,4 +322,18 @@ describe CSVUtils::CSVIterator do
       expect(described_class.new(edge_file, {}, 'r:utf-8').headers).to eq(%w[été name])
     end
   end
+
+  describe '#each without a block' do
+    subject { described_class.new(test_file).each }
+
+    it { is_expected.to be_a(Enumerator) }
+
+    it 'chains with other enumerator methods' do
+      expect(subject.with_index.map { |row, idx| [idx, row['id']] }).to eq([[0, '1'], [1, '2'], [2, '3']])
+    end
+
+    it 'passes explicit headers through' do
+      expect(described_class.new(test_file).each(%w[a b c]).first).to eq('a' => 'id', 'b' => 'name', 'c' => 'value')
+    end
+  end
 end
