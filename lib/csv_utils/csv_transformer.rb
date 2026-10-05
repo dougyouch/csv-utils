@@ -85,33 +85,34 @@ module CSVUtils
       @steps ||= []
     end
 
-    def process_step(step_type, current_headers, batch, &block)
-      case step_type
-      when :select
-        batch.select! do |row|
-          block.call row, current_headers, @additional_data
-        end
-      when :reject
-        batch.reject! do |row|
-          block.call row, current_headers, @additional_data
-        end
-      when :map
-        batch.map! do |row|
-          block.call row, current_headers, @additional_data
-        end
-      when :append
-        batch.map! do |row|
-          row + block.call(row, current_headers, @additional_data)
-        end
-      when :additional_data
-        @additional_data = block.call(batch, current_headers)
-      when :each
-        batch.each do |row|
-          block.call(row, current_headers, @additional_data)
-        end
-      end
-
+    # each step type has a process_<type>_step method that changes the batch in place
+    def process_step(step_type, current_headers, batch, &)
+      send(:"process_#{step_type}_step", current_headers, batch, &)
       batch
+    end
+
+    def process_select_step(current_headers, batch)
+      batch.select! { |row| yield row, current_headers, @additional_data }
+    end
+
+    def process_reject_step(current_headers, batch)
+      batch.reject! { |row| yield row, current_headers, @additional_data }
+    end
+
+    def process_map_step(current_headers, batch)
+      batch.map! { |row| yield row, current_headers, @additional_data }
+    end
+
+    def process_append_step(current_headers, batch)
+      batch.map! { |row| row + yield(row, current_headers, @additional_data) }
+    end
+
+    def process_additional_data_step(current_headers, batch)
+      @additional_data = yield batch, current_headers
+    end
+
+    def process_each_step(current_headers, batch)
+      batch.each { |row| yield row, current_headers, @additional_data }
     end
   end
 end
