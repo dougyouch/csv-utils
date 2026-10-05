@@ -76,7 +76,12 @@ CSVUtils::CSVCompare.new('primary.tsv', ['updated_at'], col_sep: "\t") { |src, d
 
 **Note**: Both CSV files must be sorted by the same key columns for comparison to work correctly, and the block must compare them in that same order.
 
-The block compares the key columns of a primary and a secondary record like `<=>`. Records only in the primary file are yielded as `:create`, records only in the secondary file as `:delete`, and matching records as `:update` when any of the update comparison columns differ. Without update comparison columns, no updates are yielded.
+The block compares the key columns of a primary and a secondary record like `<=>`. Records only in the primary file are yielded as `:create`, records only in the secondary file as `:delete`, and matching records as `:update` when any of the update comparison columns differ. Without update comparison columns, no updates are yielded. Records are hashes of header to value that also know the line they start on (`record.lineno`).
+
+`compare` checks its inputs instead of returning wrong results:
+
+- A file that isn't sorted the way the block expects raises `CSVUtils::UnsortedFileError` with the file and the line of the first record out of order. Each record is compared with the one before it in the same file, so the check only runs for a file whose first record the block compares equal to itself; a block written for different headers in each file (`src['id'] <=> dest['ID']`) skips it. Pass `check_order: false` to turn it off.
+- An update comparison column missing from either file raises `CSVUtils::HeaderNotFoundError`, rather than never reporting updates.
 
 ### Sorting CSV Files
 
@@ -88,11 +93,18 @@ require 'csv-utils'
 sorter = CSVUtils::CSVSort.new('input.csv', 'output.csv', true)  # true = has headers
 sorter.sort(100_000) { |a, b| a.first.to_i <=> b.first.to_i }    # batch size, comparison block
 
+# faster: compute a key once per row instead of converting values on every comparison
+sorter.sort_by(100_000) { |row| row.first.to_i }
+sorter.sort_by { |row| [row[2], row[0].to_i] }                  # several columns
+
 # without a block, rows are compared as arrays of strings
 sorter.sort
+
+# write the temporary files somewhere other than next to output.csv
+sorter.sort_by(100_000, tmp_dir: '/mnt/scratch') { |row| row.first.to_i }
 ```
 
-Batches are sorted into temporary `output.csv.part.N` files next to the output, which are merged in pairs. The temporary files are removed when the sort finishes or fails.
+Batches are sorted into temporary files, which are then merged up to 64 at a time (`CSVSort::MERGE_WIDTH`), so files of up to 64 batches are merged in a single pass and every row is read and written about twice. Rows with equal keys keep the order of the batches they came from. The temporary files go next to the output unless you pass `tmp_dir:`, and are removed when the sort finishes or fails.
 
 ### Transforming CSV Data
 
@@ -231,7 +243,11 @@ lookup = iterator.to_hash('id', 'name')  # { 'id_value' => 'name_value', ... }
 iterator.each.with_index { |row, idx| puts "#{idx}: #{row['name']}" }
 ```
 
-Line numbers count the header row as line 1, so they match what an editor shows. `headers` returns `[]` for an empty file.
+Line numbers count the header row as line 1 and are the line each row starts on, so they match what an editor shows even when a quoted value has a line break in it (CSV's own line numbers count rows). `headers` returns `[]` for an empty file.
+
+A row CSV can't parse raises `CSVUtils::MalformedRowError`, a `CSV::MalformedCSVError` whose `line_number` is the line the row starts on and whose `prev_row` is the last row read. Bytes that don't match the encoding raise CSV's own `CSV::InvalidEncodingError`, which already has the right line.
+
+`to_hash` raises `CSVUtils::HeaderNotFoundError` for a header the file doesn't have. Every error this gem raises includes `CSVUtils::Error`, so `rescue CSVUtils::Error` catches them all, and also subclasses the error raised before it existed (`RuntimeError` or `CSV::MalformedCSVError`).
 
 Given a path, the iterator opens the file for each call (`each`, `headers`, `size`, ...) and closes it when the call returns, even when the block raises or stops early, so an idle iterator holds no file handle. A CSV object passed in is rewound, never closed.
 
@@ -239,6 +255,7 @@ Let `CSVOptions` work out the separators and encoding:
 
 ```ruby
 iterator = CSVUtils::CSVIterator.auto_detect('export.tsv')
+iterator = CSVUtils::CSVIterator.auto_detect('export.csv', full_scan: true) # check the encoding of the whole file
 ```
 
 ### Matching CSV Rows
@@ -315,12 +332,16 @@ CSVUtils::CSVSort.new('data.csv', 'sorted.csv', true, options.to_csv_options).so
 
 `to_csv_options` returns the detected `col_sep` and `row_sep`, leaving out any that weren't found, and an `encoding` that reads values as UTF-8 strings: `'bom|utf-8'` for UTF-8 files, `'BOM|UTF-16LE:UTF-8'` and the like for files with a UTF-16 or UTF-32 byte order mark (CSV detects the row separator for those), and `'Windows-1252:UTF-8'` for files that aren't valid UTF-8.
 
-Without a byte order mark, the encoding comes from the first megabyte (`CSVOptions::SAMPLE_SIZE`): valid UTF-8 is `UTF-8`, anything else is `Windows-1252`, the usual encoding of Excel exports, or `ISO-8859-1` when the sample has one of the five bytes Windows-1252 leaves undefined. A file whose first non-UTF-8 byte comes after the sample is still read as UTF-8.
+Without a byte order mark, the encoding comes from the first megabyte (`CSVOptions::SAMPLE_SIZE`): valid UTF-8 is `UTF-8`, anything else is `Windows-1252`, the usual encoding of Excel exports, or `ISO-8859-1` when the sample has one of the five bytes Windows-1252 leaves undefined. A file whose first non-UTF-8 byte comes after the sample is read as UTF-8 unless you pass `full_scan: true`, which checks the whole file a megabyte at a time:
 
-Supported column separators: `\x02`, `\t`, `|`, `,` (the first one found in the header line wins)
+```ruby
+CSVUtils::CSVOptions.new('data.csv', full_scan: true).encoding # => "Windows-1252"
+```
+
+Supported column separators: `\x02`, `\t`, `|`, `,`, `;`. The one found most often outside quotes in the header row wins, and a tie goes to the one listed first, so `cost|usd,name,id` is comma separated.
 Supported row separators: `\r\n`, `\n`, `\r`
 
-Headers are parsed as a CSV row, so a quoted header like `"Last, First"` counts as one column. An empty file isn't valid.
+The header row runs to the first line break outside quotes and is parsed as a CSV row, so a quoted header like `"Last, First"` counts as one column. An empty file isn't valid.
 
 ### Encodings and Byte Order Marks
 
@@ -381,6 +402,17 @@ csv-change-eol data.csv 7C5E7C0A
 ```
 
 `csv-validator` needs the `rchardet` gem (`gem install rchardet`) to guess the encoding of values that aren't UTF-8. It writes the converted values to `utf8-correction.csv`.
+
+`csv-find-error`, `csv-grep`, `csv-diff`, `csv-splitter`, `csv-explorer` and `csv-duplicate-finder` detect each file's separators, and all but `csv-duplicate-finder` its encoding too, with `CSVOptions`. Line numbers are the line a row starts on, so `csv-find-error` hands `csv-readline` the right line even after values with line breaks. `csv-splitter` reads the file once and writes UTF-8 parts. `csv-diff` needs both files to use the same column separator.
+
+## Benchmarks
+
+`script/benchmark.rb` times the iterator, sort and compare on a generated file and counts the objects they allocate. Set `LIB` to another checkout's `lib` to compare versions:
+
+```bash
+ROWS=500000 ruby script/benchmark.rb
+LIB=../csv-utils-0.6/lib ruby script/benchmark.rb
+```
 
 ## Development
 
