@@ -232,6 +232,14 @@ iterator.each.with_index { |row, idx| puts "#{idx}: #{row['name']}" }
 
 Line numbers count the header row as line 1, so they match what an editor shows. `headers` returns `[]` for an empty file.
 
+Given a path, the iterator opens the file for each call (`each`, `headers`, `size`, ...) and closes it when the call returns, even when the block raises or stops early, so an idle iterator holds no file handle. A CSV object passed in is rewound, never closed.
+
+Let `CSVOptions` work out the separators and encoding:
+
+```ruby
+iterator = CSVUtils::CSVIterator.auto_detect('export.tsv')
+```
+
 ### Matching CSV Rows
 
 Filter CSV rows using regex patterns:
@@ -298,7 +306,12 @@ options.row_separator  # detected row separator
 options.encoding       # detected encoding (UTF-8, UTF-16, UTF-32)
 options.columns        # number of columns
 options.byte_order_mark # BOM if present
+
+# Open the file with what was detected
+CSV.open('data.csv', options.mode, **options.to_csv_options)
 ```
+
+`to_csv_options` returns the detected `col_sep` and `row_sep`, leaving out any that weren't found. `mode` is `'rb'`, or for a file with a UTF-16 or UTF-32 byte order mark a mode like `'rb:BOM|UTF-16LE:UTF-8'` that decodes it to UTF-8; CSV detects the row separator for those files.
 
 Supported column separators: `\x02`, `\t`, `|`, `,` (the first one found in the header line wins)
 Supported row separators: `\r\n`, `\n`, `\r`

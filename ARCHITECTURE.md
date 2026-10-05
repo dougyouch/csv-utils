@@ -64,6 +64,7 @@ Auto-detects CSV file properties by reading the first line:
 - **Encoding**: Derived from BOM or defaults to UTF-8
 - **Columns**: The header line is parsed with `CSV.parse_line`, so quoted separators don't split a header; malformed lines fall back to a plain split
 - An empty file reads as an empty line and is not `valid?`
+- `to_csv_options` and `mode` turn the detection into `CSV.open` arguments; UTF-16/32 files get a `BOM|UTF-16LE:UTF-8`-style mode and CSV's own row separator detection, since the first line is read as raw bytes
 
 ### CSVWrapper (I/O)
 
@@ -81,6 +82,9 @@ Enumerable wrapper for CSV reading:
 - `to_hash(key, value)`: Builds lookup hash from CSV columns
 - `each` without a block returns an Enumerator
 - Tracks `prev_row` for error context
+- Opens a path through `CSVWrapper.open` for each call and closes it in an `ensure`, so idle iterators hold no file handle and calls can nest; a CSV passed in is rewound and left open
+- `RowWrapper.create` fills the hash with an index loop rather than `headers.zip(row)`, avoiding an array per column per row
+- `CSVIterator.auto_detect(path)` builds an iterator from `CSVOptions`
 - An empty file has `[]` headers; an empty first header cell stays `nil`
 
 ### CSVSort (Processing)

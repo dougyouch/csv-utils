@@ -26,8 +26,15 @@ module CSVUtils
       # @param lineno [Integer]
       # @return [RowWrapper]
       def self.create(headers, row, lineno)
-        row_wrapper = RowWrapper[headers.zip(row)]
+        row_wrapper = new
         row_wrapper.lineno = lineno
+        # an index loop instead of headers.zip(row), which allocates an array per column for every row
+        idx = 0
+        size = headers.size
+        while idx < size
+          row_wrapper[headers[idx]] = row[idx]
+          idx += 1
+        end
         row_wrapper
       end
 
@@ -41,41 +48,41 @@ module CSVUtils
       end
     end
 
-    # @param src_csv [String, CSV] path or CSV to read; it must support rewind
+    # An iterator for a path, with the separators and encoding detected by {CSVOptions}.
+    # @example
+    #   CSVUtils::CSVIterator.auto_detect('export.tsv').each { |row| puts row['name'] }
+    # @param path [String]
+    # @return [CSVIterator]
+    def self.auto_detect(path)
+      options = CSVOptions.new(path)
+      new(path, options.to_csv_options, options.mode)
+    end
+
+    # A path is opened by each method call and closed when the call returns,
+    # so an idle iterator holds no file handle.
+    # @param src_csv [String, CSV] path or CSV to read; a CSV must support rewind and is never closed
     # @param csv_options [Hash] options passed to CSV.open for a path
     # @param mode [String] file mode for a path; 'rb:BINARY' reads bytes as is
     def initialize(src_csv, csv_options = {}, mode = 'rb')
-      @src_csv = CSVUtils::CSVWrapper.new(src_csv, mode, csv_options)
+      @src_csv = src_csv
+      @csv_options = csv_options
+      @mode = mode
     end
 
     # Yields each row from the start of the file.
     # @param headers [Array<String>, nil] headers to use; by default the first row is read as the headers
     # @yieldparam row [RowWrapper]
     # @return [Enumerator, nil] an enumerator without a block
-    def each(headers = nil)
+    def each(headers = nil, &)
       return enum_for(:each, headers) unless block_given?
 
-      @src_csv.rewind
-
-      lineno = 0
-      unless headers
-        headers = read_headers
-        lineno += 1
-      end
-
-      @prev_row = nil
-      while (row = @src_csv.shift)
-        lineno += 1
-        yield RowWrapper.create(headers, row, lineno)
-        @prev_row = row
-      end
+      open_csv { |csv| each_row(csv, headers, &) }
     end
 
     # The first row, without the byte order mark.
     # @return [Array<String>] empty for an empty file
     def headers
-      @src_csv.rewind
-      read_headers
+      open_csv { |csv| read_headers(csv) }
     end
 
     # Builds a lookup hash from every row.
@@ -85,8 +92,9 @@ module CSVUtils
     # @return [Hash]
     # @raise [RuntimeError] when key or value isn't a header
     def to_hash(key, value = nil, &)
-      raise("header #{key} not found in #{headers}") unless headers.include?(key)
-      raise("headers #{value} not found in #{headers}") if value && !headers.include?(value)
+      file_headers = headers
+      raise("header #{key} not found in #{file_headers}") unless file_headers.include?(key)
+      raise("headers #{value} not found in #{file_headers}") if value && !file_headers.include?(value)
 
       value_proc =
         if value
@@ -103,11 +111,12 @@ module CSVUtils
     # Number of rows after the header row.
     # @return [Integer]
     def size
-      @src_csv.rewind
-      @src_csv.shift
-      cnt = 0
-      cnt += 1 while @src_csv.shift
-      cnt
+      open_csv do |csv|
+        csv.shift
+        cnt = 0
+        cnt += 1 while csv.shift
+        cnt
+      end
     end
 
     # Yields the rows in batches.
@@ -134,9 +143,32 @@ module CSVUtils
 
     private
 
+    # opens a path for the duration of the block, or rewinds a CSV that was passed in
+    def open_csv
+      CSVWrapper.open(@src_csv, @mode, @csv_options) do |csv|
+        csv.rewind
+        yield csv
+      end
+    end
+
+    def each_row(csv, headers)
+      lineno = 0
+      unless headers
+        headers = read_headers(csv)
+        lineno += 1
+      end
+
+      @prev_row = nil
+      while (row = csv.shift)
+        lineno += 1
+        yield RowWrapper.create(headers, row, lineno)
+        @prev_row = row
+      end
+    end
+
     # an empty file has no headers, and an empty first header cell is nil
-    def read_headers
-      headers = @src_csv.shift || []
+    def read_headers(csv)
+      headers = csv.shift || []
       headers[0] = ByteOrderMark.strip(headers[0]) if headers[0]
       headers
     end

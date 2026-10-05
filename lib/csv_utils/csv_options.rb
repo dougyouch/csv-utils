@@ -25,6 +25,15 @@ module CSVUtils
       "\r"
     ].freeze
 
+    # @return [Hash{String => String}] byte order marks, as binary strings, to the file mode that decodes them;
+    #   a UTF-8 mark is stripped from the first header, so it needs no special mode
+    MODES = {
+      (+"\x00\x00\xFE\xFF").force_encoding('ASCII-8BIT').freeze => 'rb:BOM|UTF-32BE:UTF-8',
+      (+"\xFF\xFE\x00\x00").force_encoding('ASCII-8BIT').freeze => 'rb:BOM|UTF-32LE:UTF-8',
+      (+"\xFE\xFF").force_encoding('ASCII-8BIT').freeze => 'rb:BOM|UTF-16BE:UTF-8',
+      (+"\xFF\xFE").force_encoding('ASCII-8BIT').freeze => 'rb:BOM|UTF-16LE:UTF-8'
+    }.freeze
+
     # @return [Integer, nil] number of headers, nil without a column separator
     attr_reader :columns
     # @return [String, nil] the byte order mark the file starts with, as a binary string
@@ -53,6 +62,25 @@ module CSVUtils
       return false if @col_separator.nil? || @row_separator.nil?
 
       true
+    end
+
+    # Options for CSV.open with the detected separators; a separator that wasn't detected is left to CSV.
+    # The row separator is left to CSV for UTF-16 and UTF-32 files too, since it's detected from raw bytes.
+    # @example
+    #   CSV.open(path, options.mode, **options.to_csv_options)
+    # @return [Hash{Symbol => String}]
+    def to_csv_options
+      options = {}
+      options[:col_sep] = col_separator if col_separator
+      options[:row_sep] = row_separator if row_separator && !wide_encoding?
+      options
+    end
+
+    # File mode for CSV.open that decodes the file to UTF-8 strings. 'rb' unless the file starts with a
+    # UTF-16 or UTF-32 byte order mark.
+    # @return [String]
+    def mode
+      MODES.fetch(byte_order_mark, 'rb')
     end
 
     # @api private
@@ -114,6 +142,10 @@ module CSVUtils
     def read_first_line(io)
       line = io.is_a?(String) ? File.open(io, 'rb', &:gets) : io.gets
       line || ''
+    end
+
+    def wide_encoding?
+      MODES.key?(byte_order_mark)
     end
 
     def header_parse_options

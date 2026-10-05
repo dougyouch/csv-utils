@@ -60,6 +60,95 @@ describe CSVUtils::CSVIterator do
       iterator = described_class.new(test_file)
       expect(iterator.headers).to eq(headers)
     end
+
+    it "doesn't open the file until it's read" do
+      iterator = described_class.new('csv_iterator_missing.csv')
+      expect { iterator.headers }.to raise_error(Errno::ENOENT)
+    end
+  end
+
+  describe 'file handles' do
+    let(:opened) { [] }
+
+    before do
+      allow(CSV).to receive(:open).and_wrap_original do |original, *args, **kwargs|
+        original.call(*args, **kwargs).tap { |csv| opened << csv }
+      end
+    end
+
+    subject { described_class.new(test_file) }
+
+    it 'closes the file after each method call' do
+      subject.each { |_| }
+      subject.headers
+      subject.size
+      subject.to_hash('id', 'name')
+      expect(opened.size).to eq(5)
+      expect(opened).to all(be_closed)
+    end
+
+    it 'closes the file when iteration stops early' do
+      expect(subject.first['id']).to eq('1')
+      expect(opened).to all(be_closed)
+    end
+
+    it 'closes the file when the block raises' do
+      expect { subject.each { |row| raise 'boom' if row['id'] == '2' } }.to raise_error('boom')
+      expect(opened).to all(be_closed)
+    end
+
+    it 'allows calls that read the file from inside each' do
+      ids = subject.map { |row| [row['id'], subject.headers.size] }
+      expect(ids).to eq([['1', 3], ['2', 3], ['3', 3]])
+    end
+
+    it "rewinds but doesn't close a CSV that was passed in" do
+      CSV.open(test_file, 'rb') do |csv|
+        iterator = described_class.new(csv)
+        expect(iterator.map { |row| row['id'] }).to eq(%w[1 2 3])
+        expect(iterator.headers).to eq(headers)
+        expect(csv).not_to be_closed
+      end
+    end
+  end
+
+  describe '.auto_detect' do
+    let(:detect_file) { 'csv_iterator_detect_test.csv' }
+
+    after do
+      FileUtils.rm_f(detect_file)
+    end
+
+    subject { described_class.auto_detect(detect_file) }
+
+    it 'reads a tab separated file' do
+      File.write(detect_file, "id\tlast, first\n1\tsmith, al\n")
+      expect(subject.first).to eq('id' => '1', 'last, first' => 'smith, al')
+    end
+
+    it 'reads a pipe separated file with carriage return row separators' do
+      File.write(detect_file, "id|name\r1|a\r2|b\r")
+      expect(subject.map(&:to_h)).to eq([{ 'id' => '1', 'name' => 'a' }, { 'id' => '2', 'name' => 'b' }])
+    end
+
+    it 'reads a UTF-8 file with a byte order mark' do
+      File.write(detect_file, "\uFEFFid,name\n1,été\n")
+      expect(subject.first).to eq('id' => '1', 'name' => 'été')
+    end
+
+    {
+      'UTF-16LE' => "\xFF\xFE",
+      'UTF-16BE' => "\xFE\xFF",
+      'UTF-32LE' => "\xFF\xFE\x00\x00",
+      'UTF-32BE' => "\x00\x00\xFE\xFF"
+    }.each do |encoding, bom|
+      it "reads a #{encoding} file as UTF-8" do
+        File.binwrite(detect_file, bom.b + "id,name\r\n1,été\r\n".encode(encoding).b)
+        row = subject.first
+        expect(row).to eq('id' => '1', 'name' => 'été')
+        expect(row['name'].encoding).to eq(Encoding::UTF_8)
+      end
+    end
   end
 
   describe '#each' do

@@ -147,4 +147,51 @@ describe CSVUtils::CSVOptions do
       it { expect(csv_options.valid?).to eq(false) }
     end
   end
+
+  context 'to_csv_options' do
+    subject { csv_options.to_csv_options }
+
+    it { is_expected.to eq(col_sep: ',', row_sep: "\n") }
+
+    describe 'with tabs and carriage returns' do
+      let(:col_sep) { "\t" }
+      let(:row_sep) { "\r\n" }
+
+      it { is_expected.to eq(col_sep: "\t", row_sep: "\r\n") }
+    end
+
+    describe 'without detected separators' do
+      let(:io) { StringIO.new('id') }
+
+      it { is_expected.to eq({}) }
+    end
+
+    describe 'with a UTF-16 byte order mark' do
+      let(:byte_order_mark) { (+"\xFF\xFE").force_encoding('ASCII-8BIT') }
+
+      it 'leaves the row separator to CSV' do
+        is_expected.to eq(col_sep: ',')
+      end
+    end
+  end
+
+  context 'mode' do
+    subject { csv_options.mode }
+
+    it { is_expected.to eq('rb') }
+
+    {
+      "\xEF\xBB\xBF" => 'rb',
+      "\xFF\xFE" => 'rb:BOM|UTF-16LE:UTF-8',
+      "\xFE\xFF" => 'rb:BOM|UTF-16BE:UTF-8',
+      "\xFF\xFE\x00\x00" => 'rb:BOM|UTF-32LE:UTF-8',
+      "\x00\x00\xFE\xFF" => 'rb:BOM|UTF-32BE:UTF-8'
+    }.each do |bom, mode|
+      describe "with the byte order mark #{bom.b.inspect}" do
+        let(:byte_order_mark) { bom.b }
+
+        it { is_expected.to eq(mode) }
+      end
+    end
+  end
 end
