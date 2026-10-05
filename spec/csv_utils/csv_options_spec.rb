@@ -239,4 +239,70 @@ describe CSVUtils::CSVOptions do
       it { expect(csv_options.encoding).to eq('Windows-1252') }
     end
   end
+
+  context 'column separator detection' do
+    let(:io) { StringIO.new(content) }
+
+    {
+      'a comma file with a pipe in a header' => ["cost|usd,name,id\n1,a,2\n", ','],
+      'a tab file with commas in headers' => ["last, first\tage\tid\n", "\t"],
+      'a semicolon file' => ["name;price;qty\na;1,50;2\n", ';'],
+      'separators inside quotes' => ["\"a,b,c\";d;e\n", ';'],
+      'a tie' => ["a,b|c\n", '|']
+    }.each do |name, (content, separator)|
+      describe "with #{name}" do
+        let(:content) { content }
+
+        it { expect(csv_options.col_separator).to eq(separator) }
+      end
+    end
+  end
+
+  context 'with a quoted line break in the header row' do
+    let(:io) { StringIO.new("id,\"last\nname\",age\n1,a,2\n") }
+
+    it { expect(csv_options.columns).to eq(3) }
+    it { expect(csv_options.row_separator).to eq("\n") }
+  end
+
+  context 'with a stray quote in the header row' do
+    let(:io) { StringIO.new("id,na\"me,age\n1,a,2\n") }
+
+    it 'falls back to the first line' do
+      expect(csv_options.columns).to eq(3)
+      expect(csv_options.valid?).to eq(true)
+    end
+  end
+
+  context 'with a stray quote and no line break' do
+    let(:io) { StringIO.new('id,na"me') }
+
+    it { expect(csv_options.columns).to eq(2) }
+  end
+
+  context 'full_scan' do
+    let(:content) { "id,name\n#{"1,a\n" * (described_class::SAMPLE_SIZE / 4)}2,caf\xE9\n".b }
+    let(:file) { 'csv_options_full_scan_spec.csv' }
+
+    before { File.binwrite(file, content) }
+    after { FileUtils.rm_f(file) }
+
+    it 'only checks the sample by default' do
+      expect(described_class.new(file).encoding).to eq('UTF-8')
+    end
+
+    it 'checks the whole file' do
+      expect(described_class.new(file, full_scan: true).encoding).to eq('Windows-1252')
+    end
+
+    it 'checks the rest of an IO' do
+      File.open(file, 'rb') { |io| expect(described_class.new(io, full_scan: true).encoding).to eq('Windows-1252') }
+    end
+
+    describe 'with a byte order mark' do
+      let(:content) { "\xFF\xFE".b + "id,name\n".encode('UTF-16LE').b }
+
+      it { expect(described_class.new(file, full_scan: true).encoding).to eq('UTF-16') }
+    end
+  end
 end
