@@ -72,8 +72,8 @@ module CSVUtils
           proc(&)
         end
 
-      each_with_object({}) do |row, hsh|
-        hsh[row[key]] = value_proc.call(row)
+      to_h do |row|
+        [row[key], value_proc.call(row)]
       end
     end
 

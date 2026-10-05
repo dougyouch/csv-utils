@@ -19,7 +19,7 @@ module CSVUtils
       @compare_proc = block
     end
 
-    # rubocop:disable Metrics/MethodLength
+    # rubocop:disable-next Metrics/MethodLength
     def compare(secondary_data_file)
       src = CSV.open(primary_data_file, 'rb')
       begin
@@ -66,7 +66,6 @@ module CSVUtils
         src.close
       end
     end
-    # rubocop:enable Metrics/MethodLength
 
     private
 

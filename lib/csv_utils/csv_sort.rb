@@ -27,7 +27,7 @@ module CSVUtils
 
     private
 
-    # rubocop:disable Metrics/MethodLength
+    # rubocop:disable-next Metrics/MethodLength
     def merge_sort_csv_files(src_csv_file1, src_csv_file2, dest_csv_file)
       src1 = CSV.open(src_csv_file1, 'rb', **csv_options)
       begin
@@ -75,7 +75,6 @@ module CSVUtils
         src1.close
       end
     end
-    # rubocop:enable Metrics/MethodLength
 
     def create_sorted_csv_part_files(batch_size, &block)
       src = CSV.open(csv_file, 'rb', **csv_options)

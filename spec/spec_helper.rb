@@ -4,24 +4,19 @@ require 'rubygems'
 require 'bundler'
 require 'json'
 require 'securerandom'
+
 require 'simplecov'
-require 'simplecov-cobertura'
 
 SimpleCov.start do
   enable_coverage :branch
+  # fail CI if any line or branch goes uncovered; skipped locally so single spec files can run
+  minimum_coverage line: 100, branch: 100 if ENV['CI']
 
-  add_filter '/spec/'
+  cover 'lib/**/*.rb'
+  # loaded by the gemspec before SimpleCov starts, so it would always show as missed
+  skip 'lib/csv_utils/version.rb'
 
-  add_group 'Core', 'lib/csv_utils'
-  add_group 'CLI', 'bin'
-
-  track_files 'lib/**/*.rb'
-
-  if ENV['CI']
-    formatter SimpleCov::Formatter::CoberturaFormatter
-  else
-    formatter SimpleCov::Formatter::HTMLFormatter
-  end
+  group 'Core', 'lib/csv_utils'
 end
 
 begin

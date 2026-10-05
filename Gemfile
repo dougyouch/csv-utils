@@ -1,14 +1,16 @@
 # frozen_string_literal: true
 
-source 'http://rubygems.org'
+source 'https://rubygems.org'
 
 gem 'csv'
 gem 'inheritance-helper'
 
 group :development do
-  gem 'rake'
-  gem 'rspec'
   gem 'rubocop'
+  gem 'yard'
+end
+
+group :spec do
+  gem 'rspec'
   gem 'simplecov'
-  gem 'simplecov-cobertura'
 end

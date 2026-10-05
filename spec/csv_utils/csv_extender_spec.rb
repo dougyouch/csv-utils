@@ -33,7 +33,7 @@ describe CSVUtils::CSVExtender do
     subject { csv_extender.append(additional_headers) { |_row, _headers| [1] } }
     let(:expected_new_csv) do
       [
-        (src_headers + additional_headers)
+        src_headers + additional_headers
       ] + src_rows.map { |row| row + ['1'] }
     end
     before { subject }
@@ -46,7 +46,7 @@ describe CSVUtils::CSVExtender do
     subject { csv_extender.append_in_batches(additional_headers) { |batch, _headers| batch.map { [1] } } }
     let(:expected_new_csv) do
       [
-        (src_headers + additional_headers)
+        src_headers + additional_headers
       ] + src_rows.map { |row| row + ['1'] }
     end
     before { subject }

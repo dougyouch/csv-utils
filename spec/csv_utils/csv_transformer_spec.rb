@@ -97,7 +97,7 @@ describe CSVUtils::CSVTransformer do
     subject do
       csv_transformer
         .read_headers
-        .additional_data { |rows| rows.each_with_object({}) { |row, hsh| hsh[row[0]] = "#{row[1].downcase}@example.com" } }
+        .additional_data { |rows| rows.to_h { |row| [row[0], "#{row[1].downcase}@example.com"] } }
         .append(['Email']) { |row, _headers, additional_data| [additional_data[row[0]]] }
         .process(2)
     end
