@@ -25,6 +25,7 @@ module CSVUtils
 
     def generate
       yield self
+    ensure
       close if @must_close
     end
 

@@ -47,7 +47,7 @@ module CSVUtils
       current_headers = append_headers(additional_headers)
 
       yield current_headers
-
+    ensure
       close
     end
 

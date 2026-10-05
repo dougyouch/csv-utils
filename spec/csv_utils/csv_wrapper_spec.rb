@@ -160,4 +160,21 @@ describe CSVUtils::CSVWrapper do
       wrapper.close
     end
   end
+
+  describe '.open when the block raises' do
+    it 'closes the file and re-raises' do
+      wrapper = nil
+      expect do
+        described_class.open(test_file, 'rb') do |csv|
+          wrapper = csv
+          raise 'boom'
+        end
+      end.to raise_error('boom')
+      expect(wrapper.csv).to be_closed
+    end
+
+    it 'returns the block value' do
+      expect(described_class.open(test_file, 'rb', &:shift)).to eq(headers)
+    end
+  end
 end

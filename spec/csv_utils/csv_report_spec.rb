@@ -78,4 +78,23 @@ describe CSVUtils::CSVReport do
 
     it { expect(csv_content).to eq(expected_csv_content) }
   end
+
+  context 'generate when the block raises' do
+    let(:csv) { 'csv-utils-test.csv' }
+
+    after { FileUtils.rm_f(csv) }
+
+    it 'closes the file it opened and keeps the rows written so far' do
+      report = nil
+      expect do
+        CSVUtils::CSVReport.new(csv, %w[id]) do |r|
+          report = r
+          r << ['1']
+          raise 'boom'
+        end
+      end.to raise_error('boom')
+      expect(report.csv).to be_closed
+      expect(File.read(csv)).to eq("id\n1\n")
+    end
+  end
 end

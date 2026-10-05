@@ -11,12 +11,12 @@ module CSVUtils
 
     def self.open(file, mode, csv_options = {})
       csv = new(file, mode, csv_options)
+      return csv unless block_given?
 
-      if block_given?
+      begin
         yield csv
+      ensure
         csv.close
-      else
-        csv
       end
     end
 

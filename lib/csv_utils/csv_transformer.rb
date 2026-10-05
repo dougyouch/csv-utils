@@ -74,7 +74,7 @@ module CSVUtils
       end
 
       steps_proc.call if batch.size.positive?
-
+    ensure
       @src_csv.close
       @dest_csv.close
     end

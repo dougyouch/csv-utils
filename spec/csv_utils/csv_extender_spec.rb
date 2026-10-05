@@ -53,4 +53,12 @@ describe CSVUtils::CSVExtender do
 
     it { expect(CSV.read(new_csv_file)).to eq(expected_new_csv) }
   end
+
+  context 'when the block raises' do
+    it 'closes both files' do
+      expect { csv_extender.append(['count1']) { raise 'boom' } }.to raise_error('boom')
+      expect(csv_extender.instance_variable_get(:@src_csv).csv).to be_closed
+      expect(csv_extender.instance_variable_get(:@dest_csv).csv).to be_closed
+    end
+  end
 end

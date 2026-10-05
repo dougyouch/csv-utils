@@ -196,4 +196,24 @@ describe CSVUtils::CSVTransformer do
       expect(dest_csv).to eq([%w[319 Foo 3], %w[91 Bar 2], %w[19133158 Unknown 8]])
     end
   end
+
+  context 'process when a step raises' do
+    let(:src_file) { 'csv_transformer_src.csv' }
+    let(:dest_file) { 'csv_transformer_dest.csv' }
+    let(:csv_transformer) { CSVUtils::CSVTransformer.new(src_file, dest_file) }
+
+    before { CSV.open(src_file, 'wb') { |csv| src_csv.each { |row| csv << row } } }
+
+    after do
+      FileUtils.rm_f(src_file)
+      FileUtils.rm_f(dest_file)
+    end
+
+    it 'closes both files' do
+      failing_step = proc { raise 'boom' }
+      expect { csv_transformer.read_headers.select(&failing_step).process }.to raise_error('boom')
+      expect(csv_transformer.instance_variable_get(:@src_csv).csv).to be_closed
+      expect(csv_transformer.instance_variable_get(:@dest_csv).csv).to be_closed
+    end
+  end
 end
