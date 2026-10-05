@@ -9,6 +9,8 @@ module CSVUtils
     # compare_proc used to compare the id column(s)
     # update_comparison_columns column(s) to compare for equality, ex: updated_at, timestamp, hash
     #  caveat: update_comparison_columns need to be in both csv files
+    UTF8_BYTE_ORDER_MARK = (+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT').freeze
+
     attr_reader :primary_data_file,
                 :update_comparison_columns,
                 :compare_proc
@@ -19,74 +21,76 @@ module CSVUtils
       @compare_proc = block
     end
 
-    # rubocop:disable-next Metrics/MethodLength
-    def compare(secondary_data_file)
-      src = CSV.open(primary_data_file, 'rb')
-      begin
-        src_headers = src.shift
-        strip_bom!(src_headers[0])
-        dest = CSV.open(secondary_data_file, 'rb')
-        begin
-          dest_headers = dest.shift
-          strip_bom!(dest_headers[0])
-
-          read_next_src = true
-          read_next_dest = true
-
-          while !src.eof? || !dest.eof?
-            src_record = next_record_from_file(src_headers, src) if read_next_src
-            dest_record = next_record_from_file(dest_headers, dest) if read_next_dest
-
-            if !src_record
-              read_next_src = false
-              read_next_dest = true
-              yield :delete, dest_record
-            elsif !dest_record
-              read_next_src = true
-              read_next_dest = false
-              yield :create, src_record
-            elsif compare_proc.call(src_record, dest_record).zero?
-              read_next_src = true
-              read_next_dest = true
-              yield(:update, src_record) if update_row?(src_record, dest_record)
-            elsif compare_proc.call(src_record, dest_record).positive?
-              read_next_src = false
-              read_next_dest = true
-              yield :delete, dest_record
-            else
-              read_next_src = true
-              read_next_dest = false
-              yield :create, src_record
-            end
-          end
-        ensure
-          dest.close
+    def compare(secondary_data_file, &)
+      open_csv(primary_data_file) do |src, src_headers|
+        open_csv(secondary_data_file) do |dest, dest_headers|
+          compare_records(src, src_headers, dest, dest_headers, &)
         end
-      ensure
-        src.close
       end
     end
 
     private
 
-    def next_record_from_file(headers, file)
-      return nil if file.eof?
+    # walks both sorted files at once, advancing whichever side is behind
+    def compare_records(src, src_headers, dest, dest_headers)
+      src_record = next_record(src_headers, src)
+      dest_record = next_record(dest_headers, dest)
 
-      headers.zip(file.shift).to_h
+      while src_record || dest_record
+        case record_action(src_record, dest_record)
+        when :create
+          yield :create, src_record
+          src_record = next_record(src_headers, src)
+        when :delete
+          yield :delete, dest_record
+          dest_record = next_record(dest_headers, dest)
+        else
+          yield :update, src_record if update_row?(src_record, dest_record)
+          src_record = next_record(src_headers, src)
+          dest_record = next_record(dest_headers, dest)
+        end
+      end
+    end
+
+    def record_action(src_record, dest_record)
+      return :delete unless src_record
+      return :create unless dest_record
+
+      result = compare_proc.call(src_record, dest_record)
+      if result.zero?
+        :match
+      elsif result.positive?
+        :delete
+      else
+        :create
+      end
+    end
+
+    def open_csv(file)
+      csv = CSV.open(file, 'rb')
+      yield csv, read_headers(csv)
+    ensure
+      csv&.close
+    end
+
+    def read_headers(csv)
+      headers = csv.shift || []
+      headers[0] = headers[0].delete_prefix(UTF8_BYTE_ORDER_MARK) if headers[0]
+      headers
+    end
+
+    def next_record(headers, csv)
+      return unless (row = csv.shift)
+
+      headers.zip(row).to_h
     end
 
     def update_row?(src_record, dest_record)
       return false unless update_comparison_columns
 
-      update_comparison_columns.each do |column_name|
-        return true unless src_record[column_name] == dest_record[column_name]
+      update_comparison_columns.any? do |column_name|
+        src_record[column_name] != dest_record[column_name]
       end
-
-      false
-    end
-
-    def strip_bom!(col)
-      col.sub!((+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT'), '')
     end
   end
 end

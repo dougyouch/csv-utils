@@ -84,4 +84,64 @@ describe CSVUtils::CSVCompare do
       it { expect(compare_results).to eq(expected_compare_results) }
     end
   end
+
+  context 'when one file runs out with a single record left in the other' do
+    let(:primary_rows) { [%w[1 a], %w[3 c]] }
+    let(:secondary_rows) { [%w[2 b]] }
+    let(:csv_file1) { write_csv('csv_file1_spec.csv', primary_rows) }
+    let(:csv_file2) { write_csv('csv_file2_spec.csv', secondary_rows) }
+    let(:csv_compare) { CSVUtils::CSVCompare.new(primary_data_file) { |src, dest| src['id'].to_i <=> dest['id'].to_i } }
+
+    def write_csv(file, rows)
+      CSV.open(file, 'wb') do |csv|
+        csv << %w[id name]
+        rows.each { |row| csv << row }
+      end
+      file
+    end
+
+    it 'yields the last primary record' do
+      expect(compare_results.map { |action, record| [action, record['id']] }).to eq(
+        [[:create, '1'], [:delete, '2'], [:create, '3']]
+      )
+    end
+
+    describe 'secondary record left over' do
+      let(:primary_rows) { [%w[2 b]] }
+      let(:secondary_rows) { [%w[1 a], %w[3 c]] }
+
+      it 'yields the last secondary record' do
+        expect(compare_results.map { |action, record| [action, record['id']] }).to eq(
+          [[:delete, '1'], [:create, '2'], [:delete, '3']]
+        )
+      end
+    end
+
+    describe 'without update comparison columns' do
+      let(:secondary_rows) { [%w[1 changed], %w[3 c]] }
+
+      it 'never yields updates' do
+        expect(compare_results.map(&:first)).to eq([])
+      end
+    end
+
+    describe 'empty secondary file' do
+      let(:csv_file2) { File.write('csv_file2_spec.csv', '') && 'csv_file2_spec.csv' }
+
+      it 'creates every primary record' do
+        expect(compare_results.map { |action, record| [action, record['id']] }).to eq([[:create, '1'], [:create, '3']])
+      end
+    end
+
+    describe 'utf-8 byte order mark before the first header' do
+      let(:csv_file1) do
+        File.binwrite('csv_file1_spec.csv', "\xEF\xBB\xBFid,name\n1,a\n".b)
+        'csv_file1_spec.csv'
+      end
+
+      it 'matches on the first column' do
+        expect(compare_results.map { |action, record| [action, record['id']] }).to eq([[:create, '1'], [:delete, '2']])
+      end
+    end
+  end
 end
