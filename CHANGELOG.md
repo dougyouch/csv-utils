@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.0](https://github.com/dougyouch/csv-utils/compare/v0.6.0...v0.7.0) (2026-10-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **encoding:** CSVIterator no longer takes a file mode, files are decoded as UTF-8 whatever the locale, and output is written in the decoded encoding. See UPGRADING.md.
+
+### Features
+
+* **encoding:** read every file with the encoding option and write the decoded encoding ([1a9ec4f](https://github.com/dougyouch/csv-utils/commit/1a9ec4f98cbaadfff7ef89fec0d586cea828cf91))
+* **iterator:** open files per call, build rows without zip, add auto_detect ([34ab89a](https://github.com/dougyouch/csv-utils/commit/34ab89ae49dad76507371d2bdf9a7cd310c2cf67))
+* **options:** detect windows-1252 and read utf-8 regardless of locale ([10eeca6](https://github.com/dougyouch/csv-utils/commit/10eeca69bf094fb8c2cb5b005bc74687bde61169))
+
+
+### Bug Fixes
+
+* **iterator:** strip the byte order mark after rewind and from explicit-header rows ([bf8804b](https://github.com/dougyouch/csv-utils/commit/bf8804b1c2ce16738779f3b9ecc7631c3b29a115))
+
 ## [0.6.0](https://github.com/dougyouch/csv-utils/compare/v0.5.0...v0.6.0) (2026-10-05)
 
 
