@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/dougyouch/csv-utils/compare/v0.7.0...v0.8.0) (2026-10-05)
+
+
+### Features
+
+* **cli:** detect separators and encodings, one-pass splitter, lint scripts ([5bfc98b](https://github.com/dougyouch/csv-utils/commit/5bfc98b843c01fcc4a86f3516248942eb4e96b53))
+* **compare:** raise on unsorted input and missing update columns ([1ba7151](https://github.com/dougyouch/csv-utils/commit/1ba715178432570cdb0c3490d5f5f8e67ce895dc))
+* **iterator:** report the physical line rows start on and add CSVUtils errors ([242d747](https://github.com/dougyouch/csv-utils/commit/242d747c2e9a5a6bcb14a682751860142028c4aa))
+* **options:** detect separators by count, support semicolons, add full_scan ([1492864](https://github.com/dougyouch/csv-utils/commit/1492864075570065c108190a700edf6154a2dd48))
+
+
+### Performance Improvements
+
+* **sort:** merge up to 64 part files per pass and add sort_by and tmp_dir ([3245788](https://github.com/dougyouch/csv-utils/commit/3245788afabe2dbdf21b534065a54c3547f1183a))
+
 ## [0.7.0](https://github.com/dougyouch/csv-utils/compare/v0.6.0...v0.7.0) (2026-10-05)
 
 
