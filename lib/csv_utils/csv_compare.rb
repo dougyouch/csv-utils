@@ -24,7 +24,7 @@ module CSVUtils
     # @param update_comparison_columns [Array<String>, nil] columns compared on matching records;
     #   without them no updates are yielded
     # @param csv_options [Hash] options passed to CSV.open for both files, ex: col_sep: "\t",
-    #   or encoding: 'BINARY' to read bytes that aren't valid UTF-8
+    #   or encoding: 'BINARY' to read bytes that aren't valid UTF-8; the :encoding defaults to 'bom|utf-8'
     # @yieldparam src [Hash{String => String}] record from the primary file
     # @yieldparam dest [Hash{String => String}] record from the secondary file
     # @yieldreturn [Integer] negative, 0 or positive like <=>, using the same order both files are sorted by
@@ -88,7 +88,7 @@ module CSVUtils
     end
 
     def open_csv(file)
-      csv = CSV.open(file, 'rb', **csv_options)
+      csv = CSV.open(file, 'rb', **EncodingOptions.read(csv_options))
       yield csv, read_headers(csv)
     ensure
       csv&.close

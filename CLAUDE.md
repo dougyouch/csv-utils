@@ -24,7 +24,8 @@ This is a Ruby gem (`csv-utils`) providing utilities for manipulating and debugg
 
 - **ByteOrderMark** - Detects and strips UTF-8/16/32 byte order marks by comparing bytes; shared by every reader.
 - **CharacterEncoding** - Guesses UTF-8, Windows-1252 or ISO-8859-1 from a sample of a file without a byte order mark.
-- **CSVOptions** - Auto-detects CSV file properties: column separator, row separator, byte order marks, and encoding. Handles various separators (`\x02`, `\t`, `|`, `,`) and BOMs (UTF-8, UTF-16, UTF-32). `to_csv_options` and `mode` give the matching `CSV.open` arguments; `mode` always reads UTF-8 strings.
+- **CSVOptions** - Auto-detects CSV file properties: column separator, row separator, byte order marks, and encoding. Handles various separators (`\x02`, `\t`, `|`, `,`) and BOMs (UTF-8, UTF-16, UTF-32). `to_csv_options` gives matching CSV options, including an `encoding:` that reads UTF-8 strings.
+- **EncodingOptions** - The one encoding rule: `read` defaults `encoding:` to `'bom|utf-8'`, `write` uses the decoded encoding. Every class that opens a path goes through it.
 - **CSVWrapper** - Resource-safe wrapper around Ruby's CSV class that manages file handle lifecycle.
 - **CSVCompare** - Compares two sorted CSV files, yielding `:create`, `:update`, or `:delete` actions.
 - **CSVSort** - Sorts CSV files by specified columns.
@@ -35,7 +36,7 @@ This is a Ruby gem (`csv-utils`) providing utilities for manipulating and debugg
 - **CSVRow** - Mixin declaring how an object becomes a CSV row (`csv_column`), used with CSVReport.
 - **CSVRowMatcher** - Regex matcher for row hashes, usable as a block via `to_proc`.
 
-CSVIterator opens files with `'rb:BOM|UTF-8'`, so its values are UTF-8 whatever the locale. Other classes open files with `'rb'`; csv 3.3+ reads those as UTF-8 only when the default external encoding is UTF-8. Tools that need raw bytes use `'rb:BINARY'`. CSV raises when both the mode and the `encoding:` option set an encoding.
+Files are opened with plain `'rb'`/`'wb'` modes; the encoding always comes from the `encoding:` CSV option via EncodingOptions (CSV raises when a mode and `encoding:` both set one). Reads default to `'bom|utf-8'`, so values are UTF-8 whatever the locale; tools that need raw bytes pass `encoding: 'BINARY'` (some bin scripts use `'rb:BINARY'` with no options). Breaking changes go in UPGRADING.md.
 
 ### CLI Tools (bin/)
 

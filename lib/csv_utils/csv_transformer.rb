@@ -19,10 +19,11 @@ module CSVUtils
 
     # @param src_csv [String, CSV, #shift] path or CSV to read; paths are opened and closed by the transformer
     # @param dest_csv [String, CSV, #<<] path or CSV to write
-    # @param csv_options [Hash] options passed to CSV.open for paths
+    # @param csv_options [Hash] options passed to CSV.open for paths; the source is read with its :encoding,
+    #   'bom|utf-8' by default, and the output written in the encoding values were decoded to (see {EncodingOptions})
     def initialize(src_csv, dest_csv, csv_options = {})
-      @src_csv = CSVUtils::CSVWrapper.new(src_csv, 'rb', csv_options)
-      @dest_csv = CSVUtils::CSVWrapper.new(dest_csv, 'wb', csv_options)
+      @src_csv = CSVUtils::CSVWrapper.new(src_csv, 'rb', EncodingOptions.read(csv_options))
+      @dest_csv = CSVUtils::CSVWrapper.new(dest_csv, 'wb', EncodingOptions.write(csv_options))
     end
 
     # Reads the first row as the headers. Without it, every row is data and the output has no header row.

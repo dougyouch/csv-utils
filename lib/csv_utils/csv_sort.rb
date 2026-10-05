@@ -23,7 +23,8 @@ module CSVUtils
     # @param csv_file [String] path of the file to sort
     # @param new_csv_file [String] path of the sorted file to write
     # @param has_headers [Boolean] whether the first row is a header row
-    # @param csv_options [Hash] options passed to CSV.open
+    # @param csv_options [Hash] options passed to CSV.open; the file is read with its :encoding, 'bom|utf-8' by
+    #   default, and the sorted file written in the encoding values were decoded to (see {EncodingOptions})
     def initialize(csv_file, new_csv_file, has_headers = true, csv_options = {})
       @csv_file = csv_file
       @new_csv_file = new_csv_file
@@ -51,11 +52,12 @@ module CSVUtils
 
     # rubocop:disable-next Metrics/MethodLength
     def merge_sort_csv_files(src_csv_file1, src_csv_file2, dest_csv_file)
-      src1 = CSV.open(src_csv_file1, 'rb', **csv_options)
+      # part files were written with the write options, so reading them back with those changes nothing
+      src1 = CSV.open(src_csv_file1, 'rb', **write_options)
       begin
-        src2 = CSV.open(src_csv_file2, 'rb', **csv_options)
+        src2 = CSV.open(src_csv_file2, 'rb', **write_options)
         begin
-          dest = CSV.open(dest_csv_file, 'wb', **csv_options)
+          dest = CSV.open(dest_csv_file, 'wb', **write_options)
           begin
             if @headers
               dest << @headers
@@ -99,7 +101,7 @@ module CSVUtils
     end
 
     def create_sorted_csv_part_files(batch_size, &block)
-      src = CSV.open(csv_file, 'rb', **csv_options)
+      src = CSV.open(csv_file, 'rb', **EncodingOptions.read(csv_options))
       begin
         @headers = src.shift if has_headers
 
@@ -107,7 +109,7 @@ module CSVUtils
         create_batch_part_proc = proc do
           batch.sort!(&block)
           @csv_part_files << "#{new_csv_file}.part.#{@csv_part_files.size}"
-          CSV.open(@csv_part_files.last, 'wb', **csv_options) do |csv|
+          CSV.open(@csv_part_files.last, 'wb', **write_options) do |csv|
             csv << @headers if @headers
             batch.each { |row| csv << row }
           end
@@ -143,8 +145,19 @@ module CSVUtils
       if @csv_part_files.size.positive?
         FileUtils.mv(@csv_part_files.pop, new_csv_file)
       else
-        FileUtils.cp(@csv_file, new_csv_file)
+        write_headers_only
       end
+    end
+
+    # a file without rows is written rather than copied, so it's in the same encoding as a sorted one
+    def write_headers_only
+      CSV.open(new_csv_file, 'wb', **write_options) do |csv|
+        csv << @headers if @headers
+      end
+    end
+
+    def write_options
+      EncodingOptions.write(csv_options)
     end
 
     # removes the temporary files left behind when sorting fails part way through

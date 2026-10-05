@@ -6,7 +6,7 @@ Streaming tools for CSV files that are too big or too broken to load into memory
 [![Coverage](https://raw.githubusercontent.com/dougyouch/csv-utils/badges/coverage.svg)](https://github.com/dougyouch/csv-utils/actions/workflows/ci.yml)
 [![Branch Coverage](https://raw.githubusercontent.com/dougyouch/csv-utils/badges/branches.svg)](https://github.com/dougyouch/csv-utils/actions/workflows/ci.yml)
 
-[API reference](https://rubydoc.info/gems/csv-utils) · [Changelog](CHANGELOG.md) · [Architecture](ARCHITECTURE.md)
+[API reference](https://rubydoc.info/gems/csv-utils) · [Changelog](CHANGELOG.md) · [Upgrading](UPGRADING.md) · [Architecture](ARCHITECTURE.md)
 
 ## Features
 
@@ -19,6 +19,7 @@ Streaming tools for CSV files that are too big or too broken to load into memory
 - **CSV Iteration**: Efficient iteration over CSV files with batch support
 - **CSV Extension**: Extend CSV files with additional columns
 - **CSV Options**: Auto-detect CSV file properties (separators, encoding, BOM)
+- **Encodings**: Files are read as UTF-8 whatever the locale, or in the encoding you pass or `CSVOptions` detects
 - **Byte Order Marks**: UTF-8, UTF-16 and UTF-32 byte order marks are stripped from the first header
 - **CLI Tools**: Command-line utilities for CSV debugging and manipulation
 
@@ -307,11 +308,12 @@ options.encoding       # detected encoding (UTF-8, UTF-16, UTF-32, Windows-1252,
 options.columns        # number of columns
 options.byte_order_mark # BOM if present
 
-# Open the file with what was detected
-CSV.open('data.csv', options.mode, **options.to_csv_options)
+# Open the file with what was detected, with CSV or any class in this gem
+CSV.open('data.csv', 'rb', **options.to_csv_options)
+CSVUtils::CSVSort.new('data.csv', 'sorted.csv', true, options.to_csv_options).sort
 ```
 
-`to_csv_options` returns the detected `col_sep` and `row_sep`, leaving out any that weren't found. `mode` always reads values as UTF-8 strings: `'rb:BOM|UTF-8'` for UTF-8 files, `'rb:BOM|UTF-16LE:UTF-8'` and the like for files with a UTF-16 or UTF-32 byte order mark (CSV detects the row separator for those), and `'rb:Windows-1252:UTF-8'` for files that aren't valid UTF-8.
+`to_csv_options` returns the detected `col_sep` and `row_sep`, leaving out any that weren't found, and an `encoding` that reads values as UTF-8 strings: `'bom|utf-8'` for UTF-8 files, `'BOM|UTF-16LE:UTF-8'` and the like for files with a UTF-16 or UTF-32 byte order mark (CSV detects the row separator for those), and `'Windows-1252:UTF-8'` for files that aren't valid UTF-8.
 
 Without a byte order mark, the encoding comes from the first megabyte (`CSVOptions::SAMPLE_SIZE`): valid UTF-8 is `UTF-8`, anything else is `Windows-1252`, the usual encoding of Excel exports, or `ISO-8859-1` when the sample has one of the five bytes Windows-1252 leaves undefined. A file whose first non-UTF-8 byte comes after the sample is still read as UTF-8.
 
@@ -322,18 +324,20 @@ Headers are parsed as a CSV row, so a quoted header like `"Last, First"` counts 
 
 ### Encodings and Byte Order Marks
 
-`CSVIterator` opens files with mode `'rb:BOM|UTF-8'`, so values are UTF-8 strings whatever the locale, and bytes that aren't valid UTF-8 raise `CSV::InvalidEncodingError`. Use `CSVIterator.auto_detect` for files that may be Windows-1252, or set the mode yourself. Set the encoding in the mode, not in the CSV options: CSV raises `ArgumentError` when both have one.
+Every class handles encodings the same way:
 
-The other classes open files with mode `'rb'`. With csv 3.3 and later, when Ruby's default external encoding is UTF-8 (the usual case), CSV reads `'rb'` files as UTF-8; under another locale (`LANG=C` in some containers and cron jobs) values come back as binary strings. To pick the encoding, pass it explicitly:
+- **Reading** uses the `encoding:` CSV option, `'bom|utf-8'` by default, so values are UTF-8 strings whatever the locale (including `LANG=C` in containers and cron jobs). Bytes that aren't valid UTF-8 raise `CSV::InvalidEncodingError`.
+- **Writing** (`CSVExtender`, `CSVTransformer`, `CSVSort`) uses the encoding values were decoded to, so a file read with `'Windows-1252:UTF-8'` is written as UTF-8. `CSVReport` writes UTF-8 unless you pass `encoding:`.
+- **File modes never carry an encoding.** CSV raises `ArgumentError: encoding specified twice` when the mode and the `encoding:` option both have one.
 
 ```ruby
-iterator = CSVUtils::CSVIterator.new('export.csv', {}, 'rb:Windows-1252:UTF-8')
-iterator = CSVUtils::CSVIterator.new('latin1.csv', {}, 'rb:BINARY')
+iterator = CSVUtils::CSVIterator.new('export.csv', encoding: 'Windows-1252:UTF-8')
+iterator = CSVUtils::CSVIterator.new('latin1.csv', encoding: 'BINARY') # raw bytes
 comparator = CSVUtils::CSVCompare.new('primary.csv', ['updated_at'], encoding: 'BINARY') { |src, dest| src['id'] <=> dest['id'] }
-sorter = CSVUtils::CSVSort.new('input.csv', 'output.csv', true, encoding: 'BINARY')
+sorter = CSVUtils::CSVSort.new('input.csv', 'output.csv', true, CSVUtils::CSVOptions.new('input.csv').to_csv_options)
 ```
 
-`CSVSort`, `CSVExtender` and `CSVTransformer` take CSV options as their last argument and `CSVIterator` takes them second; they're passed to `CSV.open` for file paths.
+`CSVSort`, `CSVExtender`, `CSVTransformer`, `CSVCompare` and `CSVReport` take CSV options as their last argument and `CSVIterator` takes them second; they're passed to `CSV.open` for file paths. `CSVUtils::EncodingOptions` holds the rules above. Upgrading from 0.6? See [UPGRADING.md](UPGRADING.md).
 
 `CSVUtils::ByteOrderMark` detects and strips UTF-8, UTF-16 and UTF-32 byte order marks; `CSVIterator`, `CSVCompare` and `CSVOptions` use it to clean the first header.
 

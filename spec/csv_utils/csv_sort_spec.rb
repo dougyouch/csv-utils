@@ -48,6 +48,43 @@ describe CSVUtils::CSVSort do
     end
   end
 
+  context 'encodings' do
+    let(:csv_file) do
+      file = 'csv_utils_csv_sort_spec.csv'
+      File.binwrite(file, content)
+      file
+    end
+
+    describe 'with a Windows-1252 file' do
+      let(:content) { "name\nz\xE9\ncaf\xE9\nb\n".b }
+      let(:csv_options) { { encoding: 'Windows-1252:UTF-8' } }
+
+      it 'reads with the encoding and writes the decoded UTF-8' do
+        csv_sorter.sort(1)
+        expect(File.binread(new_csv_file)).to eq("name\nb\ncaf\u00E9\nz\u00E9\n".b)
+      end
+    end
+
+    describe 'with a headers only file' do
+      let(:content) { "\xEF\xBB\xBFname\n".b }
+
+      it 'writes the headers rather than copying the file' do
+        csv_sorter.sort
+        expect(File.binread(new_csv_file)).to eq("name\n".b)
+      end
+    end
+
+    describe 'with an empty file and no headers' do
+      let(:content) { '' }
+      let(:has_headers) { false }
+
+      it 'writes an empty file' do
+        csv_sorter.sort
+        expect(File.binread(new_csv_file)).to eq('')
+      end
+    end
+  end
+
   context 'sort without a block' do
     let(:random_numbers) { %w[b d a c e] }
 

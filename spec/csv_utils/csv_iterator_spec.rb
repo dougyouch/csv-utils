@@ -339,8 +339,8 @@ describe CSVUtils::CSVIterator do
       FileUtils.rm_f(bom_file)
     end
 
-    context 'in binary mode' do
-      subject { described_class.new(bom_file, { encoding: 'ASCII-8BIT' }, 'rb') }
+    context 'reading binary' do
+      subject { described_class.new(bom_file, encoding: 'ASCII-8BIT') }
 
       it 'strips UTF-8 BOM from first header' do
         headers = subject.headers
@@ -369,9 +369,9 @@ describe CSVUtils::CSVIterator do
     before { File.binwrite(bom_file, "\xEF\xBB\xBFid,name\n1,test\n".b) }
     after { FileUtils.rm_f(bom_file) }
 
-    ['rb', 'rb:BOM|UTF-8', 'rb:BINARY'].each do |mode|
-      context "with mode #{mode}" do
-        subject { described_class.new(bom_file, {}, mode) }
+    [{}, { encoding: 'utf-8' }, { encoding: 'BINARY' }].each do |options|
+      context "with options #{options}" do
+        subject { described_class.new(bom_file, options) }
 
         it 'strips it from the headers' do
           expect(subject.first.keys).to eq(%w[id name])
@@ -470,7 +470,7 @@ describe CSVUtils::CSVIterator do
 
     it 'strips the byte order mark from a file read as utf-8 text' do
       File.write(edge_file, "\uFEFFété,name\n1,a\n")
-      expect(described_class.new(edge_file, {}, 'r:utf-8').headers).to eq(%w[été name])
+      expect(described_class.new(edge_file, encoding: 'utf-8').headers).to eq(%w[été name])
     end
   end
 

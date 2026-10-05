@@ -97,4 +97,26 @@ describe CSVUtils::CSVReport do
       expect(File.read(csv)).to eq("id\n1\n")
     end
   end
+
+  context 'encodings' do
+    let(:file) { 'csv_report_encoding_spec.csv' }
+
+    after { FileUtils.rm_f(file) }
+
+    it 'writes UTF-8 by default' do
+      described_class.new(file, %w[name]) { |report| report << ["caf\u00E9"] }
+      expect(File.binread(file)).to eq("name\ncaf\u00E9\n".b)
+    end
+
+    it 'writes the given encoding' do
+      described_class.new(file, %w[name], encoding: 'Windows-1252') { |report| report << ["caf\u00E9"] }
+      expect(File.binread(file)).to eq("name\ncaf\xE9\n".b)
+    end
+
+    it 'appends with a mode that has no encoding' do
+      File.write(file, "name\n")
+      described_class.new(file, nil, mode: 'ab') { |report| report << ["caf\u00E9"] }
+      expect(File.binread(file)).to eq("name\ncaf\u00E9\n".b)
+    end
+  end
 end

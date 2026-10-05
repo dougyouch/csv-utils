@@ -55,20 +55,17 @@ module CSVUtils
     # @return [CSVIterator]
     def self.auto_detect(path)
       options = CSVOptions.new(path)
-      new(path, options.to_csv_options, options.mode)
+      new(path, options.to_csv_options)
     end
 
     # A path is opened by each method call and closed when the call returns,
     # so an idle iterator holds no file handle.
     # @param src_csv [String, CSV] path or CSV to read; a CSV must support rewind and is never closed
-    # @param csv_options [Hash] options passed to CSV.open for a path
-    # @param mode [String] file mode for a path. The default reads UTF-8 whatever the locale;
-    #   'rb:BINARY' reads bytes as is and 'rb:Windows-1252:UTF-8' converts. Set the encoding here, not in
-    #   csv_options: CSV raises when both have one.
-    def initialize(src_csv, csv_options = {}, mode = 'rb:BOM|UTF-8')
+    # @param csv_options [Hash] options passed to CSV.open for a path. The :encoding defaults to 'bom|utf-8'
+    #   (see {EncodingOptions}); 'BINARY' reads bytes as is and 'Windows-1252:UTF-8' converts.
+    def initialize(src_csv, csv_options = {})
       @src_csv = src_csv
-      @csv_options = csv_options
-      @mode = mode
+      @csv_options = EncodingOptions.read(csv_options)
     end
 
     # Yields each row from the start of the file.
@@ -146,9 +143,9 @@ module CSVUtils
     private
 
     # Opens a path for the duration of the block. Only a CSV that was passed in is rewound:
-    # rewinding goes back to byte 0, in front of a byte order mark the 'BOM|' mode skipped on open.
+    # rewinding goes back to byte 0, in front of a byte order mark the 'bom|' encoding skipped on open.
     def open_csv
-      CSVWrapper.open(@src_csv, @mode, @csv_options) do |csv|
+      CSVWrapper.open(@src_csv, 'rb', @csv_options) do |csv|
         csv.rewind unless @src_csv.is_a?(String)
         yield csv
       end

@@ -151,46 +151,40 @@ describe CSVUtils::CSVOptions do
   context 'to_csv_options' do
     subject { csv_options.to_csv_options }
 
-    it { is_expected.to eq(col_sep: ',', row_sep: "\n") }
+    it { is_expected.to eq(encoding: 'bom|utf-8', col_sep: ',', row_sep: "\n") }
 
     describe 'with tabs and carriage returns' do
       let(:col_sep) { "\t" }
       let(:row_sep) { "\r\n" }
 
-      it { is_expected.to eq(col_sep: "\t", row_sep: "\r\n") }
+      it { is_expected.to eq(encoding: 'bom|utf-8', col_sep: "\t", row_sep: "\r\n") }
     end
 
     describe 'without detected separators' do
       let(:io) { StringIO.new('id') }
 
-      it { is_expected.to eq({}) }
+      it { is_expected.to eq(encoding: 'bom|utf-8') }
     end
 
     describe 'with a UTF-16 byte order mark' do
       let(:byte_order_mark) { (+"\xFF\xFE").force_encoding('ASCII-8BIT') }
 
       it 'leaves the row separator to CSV' do
-        is_expected.to eq(col_sep: ',')
+        is_expected.to eq(encoding: 'BOM|UTF-16LE:UTF-8', col_sep: ',')
       end
     end
-  end
-
-  context 'mode' do
-    subject { csv_options.mode }
-
-    it { is_expected.to eq('rb:BOM|UTF-8') }
 
     {
-      "\xEF\xBB\xBF" => 'rb:BOM|UTF-8',
-      "\xFF\xFE" => 'rb:BOM|UTF-16LE:UTF-8',
-      "\xFE\xFF" => 'rb:BOM|UTF-16BE:UTF-8',
-      "\xFF\xFE\x00\x00" => 'rb:BOM|UTF-32LE:UTF-8',
-      "\x00\x00\xFE\xFF" => 'rb:BOM|UTF-32BE:UTF-8'
-    }.each do |bom, mode|
+      "\xEF\xBB\xBF" => 'bom|utf-8',
+      "\xFF\xFE" => 'BOM|UTF-16LE:UTF-8',
+      "\xFE\xFF" => 'BOM|UTF-16BE:UTF-8',
+      "\xFF\xFE\x00\x00" => 'BOM|UTF-32LE:UTF-8',
+      "\x00\x00\xFE\xFF" => 'BOM|UTF-32BE:UTF-8'
+    }.each do |bom, encoding|
       describe "with the byte order mark #{bom.b.inspect}" do
         let(:byte_order_mark) { bom.b }
 
-        it { is_expected.to eq(mode) }
+        it { expect(subject[:encoding]).to eq(encoding) }
       end
     end
   end
@@ -202,14 +196,14 @@ describe CSVUtils::CSVOptions do
       let(:content) { "id,name\n1,caf\xE9 \x93quoted\x94\n" }
 
       it { expect(csv_options.encoding).to eq('Windows-1252') }
-      it { expect(csv_options.mode).to eq('rb:Windows-1252:UTF-8') }
+      it { expect(csv_options.to_csv_options[:encoding]).to eq('Windows-1252:UTF-8') }
     end
 
     describe 'with a byte Windows-1252 leaves undefined' do
       let(:content) { "id,name\n1,a\x81b\n" }
 
       it { expect(csv_options.encoding).to eq('ISO-8859-1') }
-      it { expect(csv_options.mode).to eq('rb:ISO-8859-1:UTF-8') }
+      it { expect(csv_options.to_csv_options[:encoding]).to eq('ISO-8859-1:UTF-8') }
     end
 
     describe 'with non-UTF-8 bytes after the first line' do

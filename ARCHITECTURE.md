@@ -12,7 +12,8 @@ csv-utils is a Ruby gem providing utilities for manipulating, debugging, and pro
 2. **Resource Management** - Classes close only the files they opened, in `ensure` blocks so an exception in a user block doesn't leak handles
 3. **Batch Processing** - Large operations support configurable batch sizes to balance memory and performance
 4. **BOM Handling** - Readers strip UTF-8/16/32 byte order marks from the first header through `ByteOrderMark`
-5. **Autoloading** - `lib/csv-utils.rb` autoloads each class from its own file, so nothing loads until it's used
+5. **One Encoding Rule** - Every class reads with the `encoding:` option (`'bom|utf-8'` by default) and writes in the decoded encoding, through `EncodingOptions`
+6. **Autoloading** - `lib/csv-utils.rb` autoloads each class from its own file, so nothing loads until it's used
 
 ## Component Architecture
 
@@ -21,14 +22,16 @@ csv-utils is a Ruby gem providing utilities for manipulating, debugging, and pro
 │                        CSVUtils Module                          │
 ├─────────────────────────────────────────────────────────────────┤
 │  Detection Layer                                                │
-│  ┌─────────────┐  ┌───────────────┐                             │
-│  │ CSVOptions  │  │ ByteOrderMark │  separators, encoding, BOM  │
-│  └─────────────┘  └───────────────┘                             │
+│  ┌─────────────┐  ┌───────────────┐  ┌───────────────────┐      │
+│  │ CSVOptions  │  │ ByteOrderMark │  │ CharacterEncoding │      │
+│  └─────────────┘  └───────────────┘  └───────────────────┘      │
+│  separators, encoding, BOM                                      │
 ├─────────────────────────────────────────────────────────────────┤
 │  I/O Layer                                                      │
-│  ┌─────────────┐  ┌──────────────┐                              │
-│  │ CSVWrapper  │  │ CSVIterator  │  Enumerable, RowWrapper     │
-│  └─────────────┘  └──────────────┘                              │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────┐         │
+│  │ CSVWrapper  │  │ CSVIterator  │  │ EncodingOptions │         │
+│  └─────────────┘  └──────────────┘  └─────────────────┘         │
+│  Enumerable, RowWrapper; read/write encoding rule               │
 ├─────────────────────────────────────────────────────────────────┤
 │  Processing Layer                                               │
 │  ┌───────────────┐  ┌─────────────┐  ┌─────────────┐           │
@@ -59,6 +62,14 @@ Module functions shared by every reader:
 
 `detect(sample)` guesses the encoding of a file without a byte order mark: `UTF-8` when the bytes are valid UTF-8, otherwise `Windows-1252`, or `ISO-8859-1` when a byte Windows-1252 leaves undefined (0x81, 0x8D, 0x8F, 0x90, 0x9D) would make the conversion raise.
 
+### EncodingOptions (I/O)
+
+The one place encodings are decided; every class that opens a path goes through it:
+- `read(csv_options)` adds `encoding: 'bom|utf-8'` unless one is given
+- `write(csv_options)` sets the encoding to the one values were decoded to (`decoded_encoding`): the internal side of `'external:internal'`, otherwise the external one without `bom|`
+- `CSVSort` reads its part files back with the write options, which never convert, so any source encoding round-trips
+- Modes are always plain `'rb'`/`'wb'`, since CSV raises when a mode and `encoding:` both carry an encoding
+
 ### CSVOptions (Detection)
 
 Auto-detects CSV file properties by reading the first line:
@@ -68,7 +79,7 @@ Auto-detects CSV file properties by reading the first line:
 - **Encoding**: Derived from the BOM, or from the first `SAMPLE_SIZE` (1 MB) bytes through `CharacterEncoding`; a full sample drops its last multibyte character, which may be cut off
 - **Columns**: The header line is parsed with `CSV.parse_line`, so quoted separators don't split a header; malformed lines fall back to a plain split
 - An empty file reads as an empty line and is not `valid?`
-- `to_csv_options` and `mode` turn the detection into `CSV.open` arguments that always yield UTF-8 strings: `rb:BOM|UTF-8`, `rb:Windows-1252:UTF-8`, or for UTF-16/32 files a `BOM|UTF-16LE:UTF-8`-style mode plus CSV's own row separator detection, since the first line is read as raw bytes
+- `to_csv_options` turns the detection into CSV options for `CSV.open` or any class, with an `encoding:` that yields UTF-8 strings: `bom|utf-8`, `Windows-1252:UTF-8`, or for UTF-16/32 files `BOM|UTF-16LE:UTF-8` and the like plus CSV's own row separator detection, since the first line is read as raw bytes
 
 ### CSVWrapper (I/O)
 
@@ -166,7 +177,7 @@ The scripts are excluded from RuboCop and covered by subprocess specs in `spec/b
 
 ## Encodings
 
-`CSVIterator` opens files with mode `'rb:BOM|UTF-8'`, so its values are UTF-8 whatever the locale; its `mode` argument takes `'rb:BINARY'` for raw bytes or a converting mode such as `'rb:Windows-1252:UTF-8'`, and the encoding can't also be passed in the CSV options (CSV raises "encoding specified twice"). The other classes open files with mode `'rb'` and no explicit encoding. Under csv 3.3+ with a UTF-8 default external encoding, CSV then applies `bom|utf-8`, so values are UTF-8 strings and invalid bytes raise `CSV::InvalidEncodingError`; under another locale they are binary strings. `CSVCompare`, `CSVSort`, `CSVExtender` and `CSVTransformer` take CSV options (e.g. `encoding: 'BINARY'`).
+Every class opens paths with a plain `'rb'` or `'wb'` mode and takes the encoding from the `encoding:` CSV option through `EncodingOptions`. Reads default to `'bom|utf-8'`, so values are UTF-8 strings whatever the locale and invalid bytes raise `CSV::InvalidEncodingError`; `'BINARY'` reads raw bytes and `'Windows-1252:UTF-8'` converts. Writes use the decoded encoding, so output is UTF-8 unless the read encoding didn't convert. `CSVReport`, which only writes, defaults to UTF-8. See UPGRADING.md for how this differs from 0.6.
 
 ## Data Flow Patterns
 

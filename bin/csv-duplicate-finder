@@ -24,7 +24,7 @@ require 'csv-utils'
 file = ARGV[0] || raise('no CSV file specified')
 
 # read bytes as is, so values that aren't valid UTF-8 can still be compared
-csv = CSVUtils::CSVIterator.new(file, {}, 'rb:BINARY')
+csv = CSVUtils::CSVIterator.new(file, encoding: 'BINARY')
 
 missing_headers = options[:ignore_columns] - csv.headers
 unless missing_headers.empty?

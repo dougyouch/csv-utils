@@ -84,4 +84,14 @@ describe CSVUtils::CSVExtender do
       expect(csv_extender.instance_variable_get(:@dest_csv).csv).to be_closed
     end
   end
+
+  context 'with a Windows-1252 source' do
+    let(:csv_file) { 'csv_extender_src_file.csv'.tap { |file| File.binwrite(file, "id,name\n1,caf\xE9\n".b) } }
+    let(:csv_options) { { encoding: 'Windows-1252:UTF-8' } }
+
+    it 'writes the decoded UTF-8' do
+      csv_extender.append(['upper']) { |row, _headers| [row[1].upcase] }
+      expect(File.binread(new_csv_file)).to eq("id,name,upper\n1,caf\u00E9,CAF\u00C9\n".b)
+    end
+  end
 end

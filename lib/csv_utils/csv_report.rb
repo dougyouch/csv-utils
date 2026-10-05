@@ -15,13 +15,14 @@ module CSVUtils
 
     # @param csv [String, CSV, #<<] path to write, opened in 'wb' mode by default, or a CSV to append to
     # @param headers [Array<String>, Class, nil] header row, or a {CSVRow} class to take the headers from
-    # @param csv_options [Hash] options passed to CSV.open for a path; :mode overrides the file mode
+    # @param csv_options [Hash] options passed to CSV.open for a path; :mode overrides the file mode and
+    #   :encoding, UTF-8 by default, is the encoding of the file written
     # @yieldparam report [CSVReport] when given, the block is passed to {#generate}
     def initialize(csv, headers = nil, csv_options = {}, &block)
       @csv =
         if csv.is_a?(String)
           @must_close = true
-          opts = csv_options.dup
+          opts = EncodingOptions.write(csv_options)
           mode = opts.delete(:mode) || 'wb'
           CSV.open(csv, mode, **opts)
         else
