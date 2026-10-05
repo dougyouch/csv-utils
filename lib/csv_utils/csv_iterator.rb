@@ -143,34 +143,43 @@ module CSVUtils
 
     private
 
-    # opens a path for the duration of the block, or rewinds a CSV that was passed in
+    # Opens a path for the duration of the block. Only a CSV that was passed in is rewound:
+    # rewinding goes back to byte 0, in front of a byte order mark the 'BOM|' mode skipped on open.
     def open_csv
       CSVWrapper.open(@src_csv, @mode, @csv_options) do |csv|
-        csv.rewind
+        csv.rewind unless @src_csv.is_a?(String)
         yield csv
       end
     end
 
     def each_row(csv, headers)
-      lineno = 0
+      @prev_row = nil
+      row = shift_first_row(csv)
+      lineno = 1
       unless headers
-        headers = read_headers(csv)
+        headers = row || []
+        row = csv.shift
         lineno += 1
       end
 
-      @prev_row = nil
-      while (row = csv.shift)
-        lineno += 1
+      while row
         yield RowWrapper.create(headers, row, lineno)
         @prev_row = row
+        row = csv.shift
+        lineno += 1
       end
     end
 
     # an empty file has no headers, and an empty first header cell is nil
     def read_headers(csv)
-      headers = csv.shift || []
-      headers[0] = ByteOrderMark.strip(headers[0]) if headers[0]
-      headers
+      shift_first_row(csv) || []
+    end
+
+    # the first row without the byte order mark, whether it's read as headers or as data
+    def shift_first_row(csv)
+      row = csv.shift
+      row[0] = ByteOrderMark.strip(row[0]) if row && row[0]
+      row
     end
   end
 end

@@ -356,6 +356,39 @@ describe CSVUtils::CSVIterator do
     end
   end
 
+  describe 'byte order mark in the first row' do
+    let(:bom_file) { 'csv_iterator_first_row_bom_test.csv' }
+
+    before { File.binwrite(bom_file, "\xEF\xBB\xBFid,name\n1,test\n".b) }
+    after { FileUtils.rm_f(bom_file) }
+
+    ['rb', 'rb:BOM|UTF-8', 'rb:BINARY'].each do |mode|
+      context "with mode #{mode}" do
+        subject { described_class.new(bom_file, {}, mode) }
+
+        it 'strips it from the headers' do
+          expect(subject.first.keys).to eq(%w[id name])
+        end
+
+        it 'strips it from the first row when headers are given' do
+          expect(subject.each(%w[a b]).map { |row| row['a'] }).to eq(%w[id 1])
+        end
+      end
+    end
+
+    it 'strips it from a CSV that was passed in and rewound' do
+      CSV.open(bom_file, 'rb:BOM|UTF-8') do |csv|
+        iterator = described_class.new(csv)
+        expect(iterator.each(%w[a b]).first['a']).to eq('id')
+        expect(iterator.each(%w[a b]).first['a']).to eq('id')
+      end
+    end
+
+    it 'keeps line numbers when headers are given' do
+      expect(described_class.new(bom_file).each(%w[a b]).map(&:lineno)).to eq([1, 2])
+    end
+  end
+
   describe 'empty file handling' do
     let(:empty_file) { 'csv_iterator_empty_test.csv' }
 

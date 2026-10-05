@@ -82,7 +82,7 @@ Enumerable wrapper for CSV reading:
 - `to_hash(key, value)`: Builds lookup hash from CSV columns
 - `each` without a block returns an Enumerator
 - Tracks `prev_row` for error context
-- Opens a path through `CSVWrapper.open` for each call and closes it in an `ensure`, so idle iterators hold no file handle and calls can nest; a CSV passed in is rewound and left open
+- Opens a path through `CSVWrapper.open` for each call and closes it in an `ensure`, so idle iterators hold no file handle and calls can nest; a CSV passed in is rewound and left open. Only a passed-in CSV is rewound, since rewinding moves back in front of a BOM the `BOM|` mode skipped, and the BOM is stripped from the first row whether it is read as headers or data
 - `RowWrapper.create` fills the hash with an index loop rather than `headers.zip(row)`, avoiding an array per column per row
 - `CSVIterator.auto_detect(path)` builds an iterator from `CSVOptions`
 - An empty file has `[]` headers; an empty first header cell stays `nil`
