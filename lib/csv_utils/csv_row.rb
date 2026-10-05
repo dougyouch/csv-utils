@@ -15,6 +15,7 @@ module CSVUtils
       end
 
       def csv_column(header, options = {}, &block)
+        options = options.dup
         options[:header] ||= header.to_s
 
         if block

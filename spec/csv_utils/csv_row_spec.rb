@@ -45,4 +45,29 @@ describe CSVUtils::CSVRow do
 
     it { is_expected.to eq([test_id, name, count]) }
   end
+
+  context 'sharing an options hash between columns' do
+    let(:options) { { header: 'Shared' } }
+    let(:shared_options_class) do
+      opts = options
+      Class.new do
+        include CSVUtils::CSVRow
+
+        csv_column :first_value, opts
+        csv_column :second_value, opts
+
+        def first_value = 1
+        def second_value = 2
+      end
+    end
+
+    it 'keeps each column on its own method' do
+      expect(shared_options_class.new.csv_row).to eq([1, 2])
+    end
+
+    it 'leaves the options hash unchanged' do
+      shared_options_class
+      expect(options).to eq(header: 'Shared')
+    end
+  end
 end
