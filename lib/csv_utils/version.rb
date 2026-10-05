@@ -2,5 +2,5 @@
 
 module CSVUtils
   # Gem version, bumped by release-please
-  VERSION = '0.7.0'
+  VERSION = '0.8.0'
 end
