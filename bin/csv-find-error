@@ -1,19 +1,21 @@
 #!/usr/bin/env ruby
 
 require 'csv'
-require 'shellwords'
+require 'rbconfig'
+
+file = ARGV[0] || abort('Usage: csv-find-error <csv file>')
 
 prev_row = nil
 begin
-  CSV.open(ARGV[0], 'rb').each { |row| prev_row = row }
+  CSV.open(file, 'rb') { |csv| csv.each { |row| prev_row = row } }
 rescue CSV::MalformedCSVError => e
   puts e.class.to_s + ': ' + e.message
   puts "previous row was #{prev_row}"
   if e.message =~ /line (\d+)/
     lineno = $1.to_i
-    cmd = "csv-readline #{Shellwords.escape(ARGV[0])} #{lineno}"
-    puts "running #{cmd}"
-    system(cmd)
+    # run the csv-readline next to this script, with this gem's lib, rather than whichever is on the PATH
+    puts "running csv-readline #{file} #{lineno}"
+    system(RbConfig.ruby, '-I', File.expand_path('../lib', __dir__), File.join(__dir__, 'csv-readline'), file, lineno.to_s)
   end
   exit 1
 end
