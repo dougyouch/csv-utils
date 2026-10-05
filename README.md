@@ -303,7 +303,7 @@ options = CSVUtils::CSVOptions.new('data.csv')
 options.valid?         # true if separators detected
 options.col_separator  # detected column separator
 options.row_separator  # detected row separator
-options.encoding       # detected encoding (UTF-8, UTF-16, UTF-32)
+options.encoding       # detected encoding (UTF-8, UTF-16, UTF-32, Windows-1252, ISO-8859-1)
 options.columns        # number of columns
 options.byte_order_mark # BOM if present
 
@@ -311,7 +311,9 @@ options.byte_order_mark # BOM if present
 CSV.open('data.csv', options.mode, **options.to_csv_options)
 ```
 
-`to_csv_options` returns the detected `col_sep` and `row_sep`, leaving out any that weren't found. `mode` is `'rb'`, or for a file with a UTF-16 or UTF-32 byte order mark a mode like `'rb:BOM|UTF-16LE:UTF-8'` that decodes it to UTF-8; CSV detects the row separator for those files.
+`to_csv_options` returns the detected `col_sep` and `row_sep`, leaving out any that weren't found. `mode` always reads values as UTF-8 strings: `'rb:BOM|UTF-8'` for UTF-8 files, `'rb:BOM|UTF-16LE:UTF-8'` and the like for files with a UTF-16 or UTF-32 byte order mark (CSV detects the row separator for those), and `'rb:Windows-1252:UTF-8'` for files that aren't valid UTF-8.
+
+Without a byte order mark, the encoding comes from the first megabyte (`CSVOptions::SAMPLE_SIZE`): valid UTF-8 is `UTF-8`, anything else is `Windows-1252`, the usual encoding of Excel exports, or `ISO-8859-1` when the sample has one of the five bytes Windows-1252 leaves undefined. A file whose first non-UTF-8 byte comes after the sample is still read as UTF-8.
 
 Supported column separators: `\x02`, `\t`, `|`, `,` (the first one found in the header line wins)
 Supported row separators: `\r\n`, `\n`, `\r`
@@ -320,9 +322,12 @@ Headers are parsed as a CSV row, so a quoted header like `"Last, First"` counts 
 
 ### Encodings and Byte Order Marks
 
-Files are opened with mode `'rb'`. With csv 3.3 and later, when Ruby's default external encoding is UTF-8 (the usual case), CSV reads `'rb'` files as UTF-8 and raises `CSV::InvalidEncodingError` on bytes that aren't valid UTF-8. To read a file's bytes as is, pass an explicit encoding:
+`CSVIterator` opens files with mode `'rb:BOM|UTF-8'`, so values are UTF-8 strings whatever the locale, and bytes that aren't valid UTF-8 raise `CSV::InvalidEncodingError`. Use `CSVIterator.auto_detect` for files that may be Windows-1252, or set the mode yourself. Set the encoding in the mode, not in the CSV options: CSV raises `ArgumentError` when both have one.
+
+The other classes open files with mode `'rb'`. With csv 3.3 and later, when Ruby's default external encoding is UTF-8 (the usual case), CSV reads `'rb'` files as UTF-8; under another locale (`LANG=C` in some containers and cron jobs) values come back as binary strings. To pick the encoding, pass it explicitly:
 
 ```ruby
+iterator = CSVUtils::CSVIterator.new('export.csv', {}, 'rb:Windows-1252:UTF-8')
 iterator = CSVUtils::CSVIterator.new('latin1.csv', {}, 'rb:BINARY')
 comparator = CSVUtils::CSVCompare.new('primary.csv', ['updated_at'], encoding: 'BINARY') { |src, dest| src['id'] <=> dest['id'] }
 sorter = CSVUtils::CSVSort.new('input.csv', 'output.csv', true, encoding: 'BINARY')

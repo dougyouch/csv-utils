@@ -136,6 +136,13 @@ describe CSVUtils::CSVIterator do
       expect(subject.first).to eq('id' => '1', 'name' => 'été')
     end
 
+    it 'reads a Windows-1252 file as UTF-8 that can be appended to' do
+      File.binwrite(detect_file, "id,name\n1,caf\xE9\n".b)
+      row = subject.first
+      row['name'] += " n\u00E9e"
+      expect(row['name']).to eq("caf\u00E9 n\u00E9e")
+    end
+
     {
       'UTF-16LE' => "\xFF\xFE",
       'UTF-16BE' => "\xFE\xFF",
@@ -386,6 +393,28 @@ describe CSVUtils::CSVIterator do
 
     it 'keeps line numbers when headers are given' do
       expect(described_class.new(bom_file).each(%w[a b]).map(&:lineno)).to eq([1, 2])
+    end
+  end
+
+  describe 'default encoding' do
+    let(:utf8_file) { 'csv_iterator_utf8_test.csv' }
+
+    before { File.binwrite(utf8_file, "id,name\n1,caf\u00E9\n".b) }
+    after { FileUtils.rm_f(utf8_file) }
+
+    around do |example|
+      original = Encoding.default_external
+      Encoding.default_external = Encoding::US_ASCII
+      example.run
+    ensure
+      Encoding.default_external = original
+    end
+
+    it 'reads UTF-8 when the locale is not UTF-8' do
+      row = described_class.new(utf8_file).first
+      row['name'] += " n\u00E9e"
+      expect(row['name']).to eq("caf\u00E9 n\u00E9e")
+      expect(row['name'].encoding).to eq(Encoding::UTF_8)
     end
   end
 

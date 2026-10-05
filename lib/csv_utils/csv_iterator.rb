@@ -62,8 +62,10 @@ module CSVUtils
     # so an idle iterator holds no file handle.
     # @param src_csv [String, CSV] path or CSV to read; a CSV must support rewind and is never closed
     # @param csv_options [Hash] options passed to CSV.open for a path
-    # @param mode [String] file mode for a path; 'rb:BINARY' reads bytes as is
-    def initialize(src_csv, csv_options = {}, mode = 'rb')
+    # @param mode [String] file mode for a path. The default reads UTF-8 whatever the locale;
+    #   'rb:BINARY' reads bytes as is and 'rb:Windows-1252:UTF-8' converts. Set the encoding here, not in
+    #   csv_options: CSV raises when both have one.
+    def initialize(src_csv, csv_options = {}, mode = 'rb:BOM|UTF-8')
       @src_csv = src_csv
       @csv_options = csv_options
       @mode = mode

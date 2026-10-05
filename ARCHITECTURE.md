@@ -55,16 +55,20 @@ Module functions shared by every reader:
 - `ENCODINGS` maps each mark (binary string) to its encoding, longest first, because the UTF-32 LE mark starts with the UTF-16 LE one
 - `detect(str)` / `strip(str)` compare bytes, so they work on binary and UTF-8 strings alike; `strip` keeps the string's encoding
 
+### CharacterEncoding (Detection)
+
+`detect(sample)` guesses the encoding of a file without a byte order mark: `UTF-8` when the bytes are valid UTF-8, otherwise `Windows-1252`, or `ISO-8859-1` when a byte Windows-1252 leaves undefined (0x81, 0x8D, 0x8F, 0x90, 0x9D) would make the conversion raise.
+
 ### CSVOptions (Detection)
 
 Auto-detects CSV file properties by reading the first line:
 - **Column separators**: `\x02`, `\t`, `|`, `,` (checked in order)
 - **Row separators**: `\r\n`, `\n`, `\r`
 - **Byte order marks**: UTF-8, UTF-16, UTF-32
-- **Encoding**: Derived from BOM or defaults to UTF-8
+- **Encoding**: Derived from the BOM, or from the first `SAMPLE_SIZE` (1 MB) bytes through `CharacterEncoding`; a full sample drops its last multibyte character, which may be cut off
 - **Columns**: The header line is parsed with `CSV.parse_line`, so quoted separators don't split a header; malformed lines fall back to a plain split
 - An empty file reads as an empty line and is not `valid?`
-- `to_csv_options` and `mode` turn the detection into `CSV.open` arguments; UTF-16/32 files get a `BOM|UTF-16LE:UTF-8`-style mode and CSV's own row separator detection, since the first line is read as raw bytes
+- `to_csv_options` and `mode` turn the detection into `CSV.open` arguments that always yield UTF-8 strings: `rb:BOM|UTF-8`, `rb:Windows-1252:UTF-8`, or for UTF-16/32 files a `BOM|UTF-16LE:UTF-8`-style mode plus CSV's own row separator detection, since the first line is read as raw bytes
 
 ### CSVWrapper (I/O)
 
@@ -162,7 +166,7 @@ The scripts are excluded from RuboCop and covered by subprocess specs in `spec/b
 
 ## Encodings
 
-The library opens files with mode `'rb'` and no explicit encoding. Under csv 3.3+ with a UTF-8 default external encoding, CSV then applies `bom|utf-8`, so values are UTF-8 strings and invalid bytes raise `CSV::InvalidEncodingError`. `CSVIterator` takes a `mode` argument (`'rb:BINARY'` for raw bytes) and `CSVCompare`, `CSVSort`, `CSVExtender` and `CSVTransformer` take CSV options (e.g. `encoding: 'BINARY'`).
+`CSVIterator` opens files with mode `'rb:BOM|UTF-8'`, so its values are UTF-8 whatever the locale; its `mode` argument takes `'rb:BINARY'` for raw bytes or a converting mode such as `'rb:Windows-1252:UTF-8'`, and the encoding can't also be passed in the CSV options (CSV raises "encoding specified twice"). The other classes open files with mode `'rb'` and no explicit encoding. Under csv 3.3+ with a UTF-8 default external encoding, CSV then applies `bom|utf-8`, so values are UTF-8 strings and invalid bytes raise `CSV::InvalidEncodingError`; under another locale they are binary strings. `CSVCompare`, `CSVSort`, `CSVExtender` and `CSVTransformer` take CSV options (e.g. `encoding: 'BINARY'`).
 
 ## Data Flow Patterns
 

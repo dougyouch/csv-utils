@@ -23,7 +23,8 @@ This is a Ruby gem (`csv-utils`) providing utilities for manipulating and debugg
 ### Core Classes (lib/csv_utils/)
 
 - **ByteOrderMark** - Detects and strips UTF-8/16/32 byte order marks by comparing bytes; shared by every reader.
-- **CSVOptions** - Auto-detects CSV file properties: column separator, row separator, byte order marks, and encoding. Handles various separators (`\x02`, `\t`, `|`, `,`) and BOMs (UTF-8, UTF-16, UTF-32). `to_csv_options` and `mode` give the matching `CSV.open` arguments.
+- **CharacterEncoding** - Guesses UTF-8, Windows-1252 or ISO-8859-1 from a sample of a file without a byte order mark.
+- **CSVOptions** - Auto-detects CSV file properties: column separator, row separator, byte order marks, and encoding. Handles various separators (`\x02`, `\t`, `|`, `,`) and BOMs (UTF-8, UTF-16, UTF-32). `to_csv_options` and `mode` give the matching `CSV.open` arguments; `mode` always reads UTF-8 strings.
 - **CSVWrapper** - Resource-safe wrapper around Ruby's CSV class that manages file handle lifecycle.
 - **CSVCompare** - Compares two sorted CSV files, yielding `:create`, `:update`, or `:delete` actions.
 - **CSVSort** - Sorts CSV files by specified columns.
@@ -34,7 +35,7 @@ This is a Ruby gem (`csv-utils`) providing utilities for manipulating and debugg
 - **CSVRow** - Mixin declaring how an object becomes a CSV row (`csv_column`), used with CSVReport.
 - **CSVRowMatcher** - Regex matcher for row hashes, usable as a block via `to_proc`.
 
-Files are opened with `'rb'`; csv 3.3+ reads those as UTF-8 when the default external encoding is UTF-8, so tools that need raw bytes use `'rb:BINARY'`.
+CSVIterator opens files with `'rb:BOM|UTF-8'`, so its values are UTF-8 whatever the locale. Other classes open files with `'rb'`; csv 3.3+ reads those as UTF-8 only when the default external encoding is UTF-8. Tools that need raw bytes use `'rb:BINARY'`. CSV raises when both the mode and the `encoding:` option set an encoding.
 
 ### CLI Tools (bin/)
 

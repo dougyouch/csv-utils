@@ -178,10 +178,10 @@ describe CSVUtils::CSVOptions do
   context 'mode' do
     subject { csv_options.mode }
 
-    it { is_expected.to eq('rb') }
+    it { is_expected.to eq('rb:BOM|UTF-8') }
 
     {
-      "\xEF\xBB\xBF" => 'rb',
+      "\xEF\xBB\xBF" => 'rb:BOM|UTF-8',
       "\xFF\xFE" => 'rb:BOM|UTF-16LE:UTF-8',
       "\xFE\xFF" => 'rb:BOM|UTF-16BE:UTF-8',
       "\xFF\xFE\x00\x00" => 'rb:BOM|UTF-32LE:UTF-8',
@@ -192,6 +192,57 @@ describe CSVUtils::CSVOptions do
 
         it { is_expected.to eq(mode) }
       end
+    end
+  end
+
+  context 'without a byte order mark' do
+    let(:io) { StringIO.new(content.b) }
+
+    describe 'with Windows-1252 bytes' do
+      let(:content) { "id,name\n1,caf\xE9 \x93quoted\x94\n" }
+
+      it { expect(csv_options.encoding).to eq('Windows-1252') }
+      it { expect(csv_options.mode).to eq('rb:Windows-1252:UTF-8') }
+    end
+
+    describe 'with a byte Windows-1252 leaves undefined' do
+      let(:content) { "id,name\n1,a\x81b\n" }
+
+      it { expect(csv_options.encoding).to eq('ISO-8859-1') }
+      it { expect(csv_options.mode).to eq('rb:ISO-8859-1:UTF-8') }
+    end
+
+    describe 'with non-UTF-8 bytes after the first line' do
+      let(:content) { "id,name\n#{"1,a\n" * 1000}2,caf\xE9\n" }
+
+      it { expect(csv_options.encoding).to eq('Windows-1252') }
+    end
+
+    describe 'with a sample that ends mid-character' do
+      let(:filler) { "1,#{'a' * 100}\n" * ((described_class::SAMPLE_SIZE / 103) + 1) }
+      let(:content) { "id,name\n#{filler}".byteslice(0, described_class::SAMPLE_SIZE - 1) + "\u00E9\n" }
+
+      it 'detects UTF-8' do
+        expect(content.bytesize).to be > described_class::SAMPLE_SIZE
+        expect(csv_options.encoding).to eq('UTF-8')
+        expect(csv_options.columns).to eq(2)
+      end
+    end
+
+    describe 'with a sample that has no line break and ends mid-character' do
+      let(:content) { "a#{"\u00E9" * described_class::SAMPLE_SIZE}" }
+
+      it 'detects UTF-8' do
+        expect(content.byteslice(0, described_class::SAMPLE_SIZE).b.force_encoding('UTF-8')).not_to be_valid_encoding
+        expect(csv_options.encoding).to eq('UTF-8')
+        expect(csv_options.valid?).to eq(false)
+      end
+    end
+
+    describe 'with a full sample of Windows-1252 bytes' do
+      let(:content) { "id,name\n#{"1,caf\xE9\n" * described_class::SAMPLE_SIZE}" }
+
+      it { expect(csv_options.encoding).to eq('Windows-1252') }
     end
   end
 end

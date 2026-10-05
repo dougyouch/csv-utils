@@ -34,25 +34,31 @@ module CSVUtils
       (+"\xFF\xFE").force_encoding('ASCII-8BIT').freeze => 'rb:BOM|UTF-16LE:UTF-8'
     }.freeze
 
+    # @return [Integer] bytes read to detect the encoding of a file without a byte order mark
+    SAMPLE_SIZE = 1024 * 1024
+
     # @return [Integer, nil] number of headers, nil without a column separator
     attr_reader :columns
     # @return [String, nil] the byte order mark the file starts with, as a binary string
     attr_reader :byte_order_mark
-    # @return [String] 'UTF-8', 'UTF-16' or 'UTF-32', from the byte order mark; 'UTF-8' without one
+    # @return [String] 'UTF-8', 'UTF-16' or 'UTF-32' from the byte order mark; without one, from the bytes of
+    #   the first {SAMPLE_SIZE} bytes: 'UTF-8', 'Windows-1252' or 'ISO-8859-1' (see {CharacterEncoding.detect})
     attr_reader :encoding
     # @return [String, nil] one of {COL_SEPARATORS}
     attr_reader :col_separator
     # @return [String, nil] one of {ROW_SEPARATORS}
     attr_reader :row_separator
 
-    # @param io [String, IO] path of the file, or an IO positioned at its first line
+    # @param io [String, IO] path of the file, or an IO positioned at its first line; up to {SAMPLE_SIZE}
+    #   bytes are read from it
     def initialize(io)
-      line = read_first_line(io)
+      sample = read_sample(io)
+      line = first_line(sample)
 
       @col_separator = auto_detect_col_sep(line)
       @row_separator = auto_detect_row_sep(line)
       @byte_order_mark = get_byte_order_mark(line)
-      @encoding = get_character_encoding(@byte_order_mark)
+      @encoding = get_character_encoding(@byte_order_mark, sample)
       @columns = get_number_of_columns(line) if @col_separator
     end
 
@@ -76,11 +82,11 @@ module CSVUtils
       options
     end
 
-    # File mode for CSV.open that decodes the file to UTF-8 strings. 'rb' unless the file starts with a
-    # UTF-16 or UTF-32 byte order mark.
+    # File mode for CSV.open that reads the file as UTF-8 strings whatever the locale: 'rb:BOM|UTF-8' for UTF-8,
+    # or a mode like 'rb:Windows-1252:UTF-8' that converts other encodings.
     # @return [String]
     def mode
-      MODES.fetch(byte_order_mark, 'rb')
+      MODES.fetch(byte_order_mark) { encoding == 'UTF-8' ? 'rb:BOM|UTF-8' : "rb:#{encoding}:UTF-8" }
     end
 
     # @api private
@@ -124,9 +130,10 @@ module CSVUtils
 
     # @api private
     # @param bom [String, nil]
+    # @param sample [String] bytes from the start of the file
     # @return [String]
-    def get_character_encoding(bom)
-      BYTE_ORDER_MARKS[bom] || 'UTF-8'
+    def get_character_encoding(bom, sample)
+      BYTE_ORDER_MARKS[bom] || CharacterEncoding.detect(sample)
     end
 
     # @api private
@@ -138,10 +145,20 @@ module CSVUtils
 
     private
 
-    # an empty file reads as an empty line, which makes the options invalid
-    def read_first_line(io)
-      line = io.is_a?(String) ? File.open(io, 'rb', &:gets) : io.gets
-      line || ''
+    # an empty file reads as an empty sample, which makes the options invalid
+    def read_sample(io)
+      sample = (io.is_a?(String) ? File.open(io, 'rb') { |file| file.read(SAMPLE_SIZE) } : io.read(SAMPLE_SIZE)) || ''
+      sample.bytesize < SAMPLE_SIZE ? sample : drop_last_multibyte_char(sample)
+    end
+
+    # a full sample can end mid-character, so its last multibyte character, whole or not, is dropped
+    def drop_last_multibyte_char(sample)
+      sample.sub(/[\xC0-\xFF][\x80-\xBF]*\z/n, '')
+    end
+
+    def first_line(sample)
+      line_end = sample.index("\n")
+      line_end ? sample.byteslice(0, line_end + 1) : sample
     end
 
     def wide_encoding?

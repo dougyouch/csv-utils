@@ -6,6 +6,7 @@ require 'csv'
 # into memory. Each class is autoloaded on first use.
 module CSVUtils
   autoload :ByteOrderMark, 'csv_utils/byte_order_mark'
+  autoload :CharacterEncoding, 'csv_utils/character_encoding'
   autoload :CSVCompare, 'csv_utils/csv_compare'
   autoload :CSVExtender, 'csv_utils/csv_extender'
   autoload :CSVIterator, 'csv_utils/csv_iterator'
