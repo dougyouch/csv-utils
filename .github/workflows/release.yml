@@ -32,11 +32,15 @@ jobs:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release
         with:
+          # A PR opened with the default GITHUB_TOKEN doesn't trigger workflows, so the required CI checks never
+          # run on the release PR. Set the RELEASE_PLEASE_TOKEN secret (a fine-grained token or GitHub App token
+          # with contents and pull-requests write access) so they do; without it the default token is used.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # The release PR is opened with GITHUB_TOKEN, which doesn't trigger CI on it,
-  # so run the suite here before anything is published.
+  # Run the suite again on the released commit before anything is published, whether or not
+  # CI ran on the release PR.
   ci:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch'
