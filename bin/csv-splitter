@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'optparse'
 
@@ -37,47 +38,34 @@ def get_split_file_name(file, num_files, total_files)
   end
 end
 
-csv_options = CSVUtils::CSVOptions.new(file)
+csv_options = CSVUtils::CSVOptions.new(file).to_csv_options.merge(liberal_parsing: true)
 # a single column file has no separator to detect
-col_sep = csv_options.col_separator || ','
+csv_options[:col_sep] ||= ','
 
-csv = CSV.open(
-  file,
-  'rb',
-  col_sep: col_sep,
-  liberal_parsing: true
-)
-
-headers = options[:no_header] ? nil : csv.shift
-
-total_rows = 0
-total_rows += 1 while csv.shift
-
-csv.rewind
-csv.shift if headers
-
-total_files = total_rows / options[:rows]
-total_files += 1 if (total_rows % options[:rows]) > 0
-
-num_rows = 0
-num_files = 0
+# one pass: parts are written under temporary names, then renamed once the number of parts is known
+part_files = []
 out = nil
+num_rows = 0
 
-append_row_proc = proc do |row|
-  if out.nil? || num_rows >= options[:rows]
-    out.close if out
-    num_rows = 0
-    num_files += 1
-    out = CSV.open(get_split_file_name(file, num_files, total_files), 'wb', col_sep: col_sep)
-    out << headers if headers
+CSV.open(file, 'rb', **CSVUtils::EncodingOptions.read(csv_options)) do |csv|
+  headers = options[:no_header] ? nil : csv.shift
+
+  while (row = csv.shift)
+    if out.nil? || num_rows >= options[:rows]
+      out&.close
+      num_rows = 0
+      part_files << "#{file}.part-#{part_files.size + 1}.tmp"
+      out = CSV.open(part_files.last, 'wb', **CSVUtils::EncodingOptions.write(csv_options))
+      out << headers if headers
+    end
+
+    out << row
+    num_rows += 1
   end
-
-  out << row
-  num_rows += 1
+ensure
+  out&.close
 end
 
-while (row = csv.shift)
-  append_row_proc.call(row)
+part_files.each_with_index do |part_file, idx|
+  File.rename(part_file, get_split_file_name(file, idx + 1, part_files.size))
 end
-
-out&.close

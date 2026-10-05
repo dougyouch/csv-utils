@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'optparse'
 
@@ -43,7 +44,7 @@ raise('no search specified') unless options[:search]
 
 require 'csv-utils'
 
-csv = CSVUtils::CSVIterator.new(ARGV[0])
+csv = CSVUtils::CSVIterator.auto_detect(ARGV[0])
 
 search_regex =
   if options[:exact_match]

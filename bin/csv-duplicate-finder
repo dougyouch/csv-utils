@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'optparse'
 
@@ -23,13 +24,11 @@ require 'csv-utils'
 
 file = ARGV[0] || raise('no CSV file specified')
 
-# read bytes as is, so values that aren't valid UTF-8 can still be compared
-csv = CSVUtils::CSVIterator.new(file, encoding: 'BINARY')
+# detect the separators, but read bytes as is, so values that aren't valid UTF-8 can still be compared
+csv = CSVUtils::CSVIterator.new(file, CSVUtils::CSVOptions.new(file).to_csv_options.merge(encoding: 'BINARY'))
 
 missing_headers = options[:ignore_columns] - csv.headers
-unless missing_headers.empty?
-  raise("unknown headers #{missing_headers.join(', ')} in configured ignore headers")
-end
+raise("unknown headers #{missing_headers.join(', ')} in configured ignore headers") unless missing_headers.empty?
 
 hashed_rows = {}
 
@@ -45,7 +44,7 @@ end
 
 duplicate_rows = {}
 
-hashed_rows.reject! { |key, row_numbers| row_numbers.size <= 1 }
+hashed_rows.reject! { |_key, row_numbers| row_numbers.size <= 1 }
 
 hashed_rows.each do |key, row_numbers|
   hashed_rows[key] = {}
@@ -62,11 +61,11 @@ csv.each do |row|
 end
 
 CSV.open('duplicates-' + File.basename(file), 'wb:BINARY') do |out|
-  out << ['duplicate_key', 'line_no'] + csv.headers
+  out << (%w[duplicate_key line_no] + csv.headers)
 
   hashed_rows.each do |key, rows|
     rows.each do |lineno, row|
-      out << [key, lineno] + row.values
+      out << ([key, lineno] + row.values)
     end
   end
 end
