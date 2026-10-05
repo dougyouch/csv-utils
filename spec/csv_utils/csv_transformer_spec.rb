@@ -216,4 +216,20 @@ describe CSVUtils::CSVTransformer do
       expect(csv_transformer.instance_variable_get(:@dest_csv).csv).to be_closed
     end
   end
+
+  context 'process with batches that divide the rows evenly' do
+    let(:batch_sizes) { [] }
+
+    before do
+      csv_transformer
+        .read_headers
+        .additional_data { |batch, _headers| batch_sizes << batch.size }
+        .process(1)
+    end
+
+    it 'processes each full batch once' do
+      expect(batch_sizes).to eq([1, 1, 1])
+      expect(dest_csv).to eq([%w[ID Name], %w[319 Foo], %w[91 Bar], %w[19133158 Unknown]])
+    end
+  end
 end

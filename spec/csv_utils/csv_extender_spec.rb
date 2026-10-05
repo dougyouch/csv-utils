@@ -52,6 +52,29 @@ describe CSVUtils::CSVExtender do
     before { subject }
 
     it { expect(CSV.read(new_csv_file)).to eq(expected_new_csv) }
+
+    describe 'with batches that divide the rows evenly' do
+      let(:batches) { [] }
+      subject do
+        csv_extender.append_in_batches(additional_headers, 1) do |batch, _headers|
+          batches << batch.size
+          batch.map { [1] }
+        end
+      end
+
+      it { expect(CSV.read(new_csv_file)).to eq(expected_new_csv) }
+      it { expect(batches).to eq([1, 1, 1]) }
+    end
+  end
+
+  context 'append to a file without headers' do
+    let(:src_headers) { nil }
+    subject { csv_extender.append(nil) { |row, headers| [headers.inspect, row[0].to_i * 2] } }
+    before { subject }
+
+    it 'extends every row and passes nil headers' do
+      expect(CSV.read(new_csv_file)).to eq([%w[3 four nil 6], %w[9 ten nil 18], %w[19 twenty nil 38]])
+    end
   end
 
   context 'when the block raises' do

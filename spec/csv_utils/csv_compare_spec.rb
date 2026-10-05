@@ -50,8 +50,8 @@ describe CSVUtils::CSVCompare do
   end
 
   after do
-    File.unlink(csv_file1)
-    File.unlink(csv_file2)
+    FileUtils.rm_f(csv_file1)
+    FileUtils.rm_f(csv_file2)
   end
 
   context 'compare' do
@@ -142,6 +142,15 @@ describe CSVUtils::CSVCompare do
       it 'matches on the first column' do
         expect(compare_results.map { |action, record| [action, record['id']] }).to eq([[:create, '1'], [:delete, '2']])
       end
+    end
+  end
+
+  context 'when the secondary file is missing' do
+    let(:csv_file2) { 'csv_file2_spec_missing.csv' }
+
+    it 'raises without leaving the primary file open' do
+      expect { compare_results }.to raise_error(Errno::ENOENT)
+      expect(ObjectSpace.each_object(File).none? { |f| !f.closed? && f.path == primary_data_file }).to eq(true)
     end
   end
 end

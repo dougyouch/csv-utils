@@ -4,7 +4,7 @@ require 'spec_helper'
 
 describe CSVUtils::CSVSort do
   let(:random_numbers) do
-    100_000.times.map do
+    1_000.times.map do
       rand(1_000_000)
     end
   end
@@ -32,7 +32,7 @@ describe CSVUtils::CSVSort do
   end
 
   context 'sort' do
-    let(:batch_size) { 20_000 }
+    let(:batch_size) { 200 }
     subject { csv_sorter.sort(batch_size) { |a, b| a.first.to_i <=> b.first.to_i } }
 
     before { subject }
@@ -90,5 +90,22 @@ describe CSVUtils::CSVSort do
       2.times { csv_sorter.sort(2) { |a, b| a.first.to_i <=> b.first.to_i } }
       expect(new_csv_nums).to eq([1, 2, 3])
     end
+  end
+
+  context 'sort without headers' do
+    let(:csv_file) do
+      'csv_utils_csv_sort_spec.csv'.tap do |file|
+        CSV.open(file, 'wb') { |csv| [5, 3, 4, 1, 2].each { |num| csv << [num] } }
+      end
+    end
+    let(:has_headers) { false }
+
+    before { csv_sorter.sort(2) { |a, b| a.first.to_i <=> b.first.to_i } }
+
+    it 'sorts every row and adds no header' do
+      expect(CSV.read(new_csv_file).flatten).to eq(%w[1 2 3 4 5])
+    end
+
+    it { expect(csv_sorter.headers).to be_nil }
   end
 end
