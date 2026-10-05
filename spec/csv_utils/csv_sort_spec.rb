@@ -47,4 +47,48 @@ describe CSVUtils::CSVSort do
       it { expect(new_csv_nums).to eq(random_numbers.sort) }
     end
   end
+
+  context 'sort without a block' do
+    let(:random_numbers) { %w[b d a c e] }
+
+    before { csv_sorter.sort(2) }
+
+    it 'compares rows as arrays of strings across part files' do
+      expect(CSV.read(new_csv_file)).to eq([['num']] + %w[a b c d e].map { |num| [num] })
+    end
+
+    it 'leaves no temporary files behind' do
+      expect(Dir["#{new_csv_file}.*"]).to eq([])
+    end
+  end
+
+  context 'when the comparison raises' do
+    let(:random_numbers) { [3, 1, 2, 5, 4] }
+
+    it 'removes the part and merge files' do
+      part_files = []
+      comparisons = 0
+      expect do
+        csv_sorter.sort(2) do |a, b|
+          comparisons += 1
+          # the batches of 2 take 2 comparisons, so this fails while merging the part files
+          part_files = Dir["#{new_csv_file}.*"] if comparisons == 3
+          raise 'boom' if comparisons == 4
+
+          a.first.to_i <=> b.first.to_i
+        end
+      end.to raise_error('boom')
+      expect(part_files).not_to be_empty
+      expect(Dir["#{new_csv_file}.*"]).to eq([])
+    end
+  end
+
+  context 'sorting twice' do
+    let(:random_numbers) { [3, 1, 2] }
+
+    it 'starts each sort fresh' do
+      2.times { csv_sorter.sort(2) { |a, b| a.first.to_i <=> b.first.to_i } }
+      expect(new_csv_nums).to eq([1, 2, 3])
+    end
+  end
 end

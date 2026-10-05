@@ -17,12 +17,16 @@ module CSVUtils
       @has_headers = has_headers
       @csv_options = csv_options
       @csv_part_files = []
-      @files_to_delete = []
     end
 
-    def sort(batch_size = 100_000, &)
-      create_sorted_csv_part_files(batch_size, &)
-      merge_csv_part_files(&)
+    # without a block, rows are compared as arrays of strings
+    def sort(batch_size = 100_000, &block)
+      block ||= proc { |row1, row2| row1 <=> row2 }
+      @csv_part_files = []
+      create_sorted_csv_part_files(batch_size, &block)
+      merge_csv_part_files(&block)
+    ensure
+      delete_csv_part_files
     end
 
     private
@@ -109,21 +113,26 @@ module CSVUtils
       while @csv_part_files.size > 1
         file_merge_cnt += 1
 
-        csv_part_file1 = @csv_part_files.shift
-        csv_part_file2 = @csv_part_files.shift
+        # inputs stay in the list until merged, so a failed merge still cleans them up
+        csv_part_file1, csv_part_file2 = @csv_part_files.first(2)
         @csv_part_files << "#{new_csv_file}.merge.#{file_merge_cnt}"
 
         merge_sort_csv_files(csv_part_file1, csv_part_file2, @csv_part_files.last, &)
 
-        File.unlink(csv_part_file1)
-        File.unlink(csv_part_file2)
+        @csv_part_files.shift(2).each { |file| File.unlink(file) }
       end
 
       if @csv_part_files.size.positive?
-        FileUtils.mv(@csv_part_files.last, new_csv_file)
+        FileUtils.mv(@csv_part_files.pop, new_csv_file)
       else
         FileUtils.cp(@csv_file, new_csv_file)
       end
+    end
+
+    # removes the temporary files left behind when sorting fails part way through
+    def delete_csv_part_files
+      @csv_part_files.each { |file| FileUtils.rm_f(file) }
+      @csv_part_files = []
     end
   end
 end
