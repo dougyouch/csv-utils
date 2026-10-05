@@ -136,6 +136,11 @@ describe CSVUtils::CSVIterator do
       expect(subject.first).to eq('id' => '1', 'name' => 'été')
     end
 
+    it 'checks the whole file with full_scan' do
+      File.binwrite(detect_file, "id,name\n#{"1,a\n" * 300_000}2,caf\xE9\n".b)
+      expect(described_class.auto_detect(detect_file, full_scan: true).to_a.last).to eq('id' => '2', 'name' => "caf\u00E9")
+    end
+
     it 'reads a Windows-1252 file as UTF-8 that can be appended to' do
       File.binwrite(detect_file, "id,name\n1,caf\xE9\n".b)
       row = subject.first
@@ -178,7 +183,9 @@ describe CSVUtils::CSVIterator do
     end
 
     it 'tracks prev_row' do
-      subject.each { |_| }
+      expect(subject.prev_row).to be_nil
+      prev_rows = subject.map { |_| subject.prev_row }
+      expect(prev_rows).to eq([headers, rows[0], rows[1]])
       expect(subject.prev_row).to eq(rows.last)
     end
 
@@ -252,7 +259,12 @@ describe CSVUtils::CSVIterator do
 
     context 'with invalid value column' do
       it 'raises an error' do
-        expect { subject.to_hash('id', 'invalid') }.to raise_error(/headers invalid not found/)
+        expect { subject.to_hash('id', 'invalid') }.to raise_error(CSVUtils::HeaderNotFoundError, /header invalid not found/) do |error|
+          expect(error.header).to eq('invalid')
+          expect(error.headers).to eq(headers)
+          expect(error).to be_a(RuntimeError)
+          expect(error).to be_a(CSVUtils::Error)
+        end
       end
     end
   end
@@ -393,6 +405,61 @@ describe CSVUtils::CSVIterator do
 
     it 'keeps line numbers when headers are given' do
       expect(described_class.new(bom_file).each(%w[a b]).map(&:lineno)).to eq([1, 2])
+    end
+  end
+
+  describe 'line numbers' do
+    let(:lines_file) { 'csv_iterator_lines_test.csv' }
+
+    after { FileUtils.rm_f(lines_file) }
+
+    it 'counts the physical lines of quoted line breaks' do
+      File.write(lines_file, "id,note\n1,\"two\nlines\"\n2,x\n\n3,\"a\r\nb\r\nc\"\n4,y")
+      rows = described_class.new(lines_file).map { |row| [row['id'], row.lineno] }
+      expect(rows).to eq([['1', 2], ['2', 4], [nil, 5], ['3', 6], ['4', 9]])
+    end
+
+    it 'counts carriage return row separators' do
+      File.write(lines_file, "id,note\r1,\"a\rb\"\r2,c\r")
+      expect(described_class.new(lines_file, row_sep: "\r").map(&:lineno)).to eq([2, 4])
+    end
+
+    it 'counts from the first row when headers are given' do
+      File.write(lines_file, "1,\"a\nb\"\n2,c\n")
+      expect(described_class.new(lines_file).each(%w[id note]).map(&:lineno)).to eq([1, 3])
+    end
+  end
+
+  describe 'rows CSV cannot read' do
+    let(:bad_file) { 'csv_iterator_bad_test.csv' }
+
+    after { FileUtils.rm_f(bad_file) }
+
+    it 'raises a MalformedRowError with the physical line and the previous row' do
+      File.write(bad_file, "id,note\n1,\"two\nlines\"\n2,\"bad\"x\n3,z\n")
+      expect { described_class.new(bad_file).to_a }.to raise_error(CSVUtils::MalformedRowError) do |error|
+        expect(error.message).to eq("Any value after quoted field isn't allowed in line 4.")
+        expect(error.line_number).to eq(4)
+        expect(error.prev_row).to eq(%W[1 two\nlines])
+        expect(error).to be_a(CSV::MalformedCSVError)
+        expect(error).to be_a(CSVUtils::Error)
+      end
+    end
+
+    it 'lets CSV report bytes that are not valid UTF-8, with their line' do
+      File.binwrite(bad_file, "id,note\n1,\"a\nb\"\n2,caf\xE9\n".b)
+      expect { described_class.new(bad_file).to_a }.to raise_error(CSV::InvalidEncodingError) do |error|
+        expect(error).not_to be_a(CSVUtils::MalformedRowError)
+        expect(error.line_number).to eq(4)
+      end
+    end
+
+    it 'has no previous row when the header row is bad' do
+      File.write(bad_file, "\"id\"x,note\n1,a\n")
+      expect { described_class.new(bad_file).headers }.to raise_error(CSVUtils::MalformedRowError) do |error|
+        expect(error.line_number).to eq(1)
+        expect(error.prev_row).to be_nil
+      end
     end
   end
 
