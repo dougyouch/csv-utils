@@ -145,4 +145,69 @@ describe CSVUtils::CSVSort do
 
     it { expect(csv_sorter.headers).to be_nil }
   end
+
+  context 'sort_by' do
+    before { csv_sorter.sort_by(150) { |row| row.first.to_i } }
+
+    it { expect(new_csv_nums).to eq(random_numbers.sort) }
+
+    it 'leaves no temporary files behind' do
+      expect(Dir["#{new_csv_file}.*"]).to eq([])
+    end
+  end
+
+  context 'sort_by with several columns' do
+    let(:csv_file) do
+      'csv_utils_csv_sort_spec.csv'.tap do |file|
+        CSV.open(file, 'wb') do |csv|
+          csv << %w[last first]
+          [%w[b x], %w[a z], %w[b a], %w[a b]].each { |row| csv << row }
+        end
+      end
+    end
+
+    it 'compares array keys' do
+      csv_sorter.sort_by(1) { |row| [row[0], row[1]] }
+      expect(CSV.read(new_csv_file)).to eq([%w[last first], %w[a b], %w[a z], %w[b a], %w[b x]])
+    end
+  end
+
+  context 'with more part files than the merge width' do
+    before { stub_const('CSVUtils::CSVSort::MERGE_WIDTH', 3) }
+
+    it 'merges in several passes' do
+      csv_sorter.sort(50) { |a, b| a.first.to_i <=> b.first.to_i }
+      expect(new_csv_nums).to eq(random_numbers.sort)
+      expect(Dir["#{new_csv_file}.*"]).to eq([])
+    end
+
+    it 'keeps rows with equal keys in file order' do
+      CSV.open(csv_file, 'wb') do |csv|
+        csv << %w[key seq]
+        20.times { |seq| csv << [seq % 2, seq] }
+      end
+      csv_sorter.sort_by(2) { |row| row.first.to_i }
+      rows = CSV.read(new_csv_file).drop(1)
+      expect(rows.map(&:first)).to eq((%w[0] * 10) + (%w[1] * 10))
+      expect(rows.map { |row| row.last.to_i }).to eq((0...20).step(2).to_a + (1...20).step(2).to_a)
+    end
+  end
+
+  context 'with a tmp_dir' do
+    let(:tmp_dir) { Dir.mktmpdir }
+
+    after { FileUtils.remove_entry(tmp_dir) }
+
+    it 'writes the temporary files there' do
+      seen = []
+      csv_sorter.sort(100, tmp_dir: tmp_dir) do |a, b|
+        seen |= Dir.children(tmp_dir)
+        a.first.to_i <=> b.first.to_i
+      end
+      expect(new_csv_nums).to eq(random_numbers.sort)
+      expect(seen).not_to be_empty
+      expect(Dir.children(tmp_dir)).to eq([])
+      expect(Dir["#{new_csv_file}.*"]).to eq([])
+    end
+  end
 end

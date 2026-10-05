@@ -4,11 +4,20 @@ require 'fileutils'
 
 module CSVUtils
   # Sorts a CSV file too large to load into memory with an external merge sort: batches of rows are
-  # sorted into temporary part files next to the new file, which are then merged in pairs.
+  # sorted into temporary files, which are then merged up to {MERGE_WIDTH} at a time, so most files
+  # are sorted with a single merge pass.
   #
   # @example
   #   CSVUtils::CSVSort.new('input.csv', 'sorted.csv').sort { |a, b| a[0].to_i <=> b[0].to_i }
+  #   CSVUtils::CSVSort.new('input.csv', 'sorted.csv').sort_by { |row| row[0].to_i }
   class CSVSort
+    # @return [Integer] temporary files merged at once, which bounds the files open at the same time
+    MERGE_WIDTH = 64
+
+    ROW_KEY = proc { |row| row }
+    KEY_COMPARE = proc { |key1, key2| key1 <=> key2 }
+    private_constant :ROW_KEY, :KEY_COMPARE
+
     # @return [String] path of the file to sort
     attr_reader :csv_file
     # @return [String] path of the sorted file to write
@@ -30,127 +39,118 @@ module CSVUtils
       @new_csv_file = new_csv_file
       @has_headers = has_headers
       @csv_options = csv_options
-      @csv_part_files = []
+      @temp_files = []
     end
 
-    # Writes the sorted file. Temporary files are removed even when sorting fails.
+    # Writes the file sorted by comparing rows. Temporary files are removed even when sorting fails.
     # @param batch_size [Integer] rows held in memory and sorted at a time
+    # @param tmp_dir [String, nil] directory for the temporary files; the sorted file's directory by default
     # @yieldparam row1 [Array<String>]
     # @yieldparam row2 [Array<String>]
     # @yieldreturn [Integer] negative, 0 or positive like <=>; without a block rows are compared as arrays
     # @return [void]
-    def sort(batch_size = 100_000, &block)
-      block ||= proc { |row1, row2| row1 <=> row2 }
-      @csv_part_files = []
-      create_sorted_csv_part_files(batch_size, &block)
-      merge_csv_part_files(&block)
-    ensure
-      delete_csv_part_files
+    def sort(batch_size = 100_000, tmp_dir: nil, &block)
+      compare = block || KEY_COMPARE
+      run_sort(batch_size, tmp_dir, ROW_KEY, compare) { |batch| batch.sort!(&compare) }
+    end
+
+    # Writes the file sorted by a key computed once per row, which is faster than {#sort} when
+    # the comparison would otherwise convert values (ex: to_i) on every comparison.
+    # @param batch_size [Integer] rows held in memory and sorted at a time
+    # @param tmp_dir [String, nil] directory for the temporary files; the sorted file's directory by default
+    # @yieldparam row [Array<String>]
+    # @yieldreturn [Comparable] the sort key; keys are compared with <=>, so use arrays for several columns
+    # @return [void]
+    def sort_by(batch_size = 100_000, tmp_dir: nil, &key)
+      run_sort(batch_size, tmp_dir, key, KEY_COMPARE) { |batch| batch.sort_by!(&key) }
     end
 
     private
 
-    # rubocop:disable-next Metrics/MethodLength
-    def merge_sort_csv_files(src_csv_file1, src_csv_file2, dest_csv_file)
-      # part files were written with the write options, so reading them back with those changes nothing
-      src1 = CSV.open(src_csv_file1, 'rb', **write_options)
-      begin
-        src2 = CSV.open(src_csv_file2, 'rb', **write_options)
-        begin
-          dest = CSV.open(dest_csv_file, 'wb', **write_options)
-          begin
-            if @headers
-              dest << @headers
-              src1.shift
-              src2.shift
-            end
+    def run_sort(batch_size, tmp_dir, key, compare, &)
+      @tmp_dir = tmp_dir || File.dirname(new_csv_file)
+      @temp_files = []
+      part_files = create_sorted_part_files(batch_size, &)
+      part_files = merge_pass(part_files, key, compare) while part_files.size > 1
+      write_sorted_file(part_files.first)
+    ensure
+      delete_temp_files
+    end
 
-            row1 = src1.shift
-            row2 = src2.shift
-
-            append_row1_proc = proc do
-              dest << row1
-              row1 = src1.shift
-            end
-
-            append_row2_proc = proc do
-              dest << row2
-              row2 = src2.shift
-            end
-
-            while row1 || row2
-              if row1.nil?
-                append_row2_proc.call
-              elsif row2.nil?
-                append_row1_proc.call
-              elsif yield(row1, row2) <= 0
-                append_row1_proc.call
-              else
-                append_row2_proc.call
-              end
-            end
-          ensure
-            dest.close
-          end
-        ensure
-          src2.close
+    def create_sorted_part_files(batch_size, &sort_batch)
+      CSV.open(csv_file, 'rb', **EncodingOptions.read(csv_options)) do |src|
+        @headers = (src.shift if has_headers)
+        src.each_slice(batch_size).map do |batch|
+          sorted = sort_batch.call(batch)
+          write_temp_file { |csv| sorted.each { |row| csv << row } }
         end
-      ensure
-        src1.close
       end
     end
 
-    def create_sorted_csv_part_files(batch_size, &block)
-      src = CSV.open(csv_file, 'rb', **EncodingOptions.read(csv_options))
-      begin
-        @headers = src.shift if has_headers
+    # merges consecutive groups of files, so each pass divides the number of files by MERGE_WIDTH
+    def merge_pass(files, key, compare)
+      files.each_slice(MERGE_WIDTH).map do |group|
+        next group.first if group.size == 1
 
-        batch = []
-        create_batch_part_proc = proc do
-          batch.sort!(&block)
-          @csv_part_files << "#{new_csv_file}.part.#{@csv_part_files.size}"
-          CSV.open(@csv_part_files.last, 'wb', **write_options) do |csv|
-            csv << @headers if @headers
-            batch.each { |row| csv << row }
-          end
-          batch = []
-        end
-
-        while (row = src.shift)
-          batch << row
-          create_batch_part_proc.call if batch.size >= batch_size
-        end
-
-        create_batch_part_proc.call if batch.size.positive?
-      ensure
-        src.close
+        merged = write_temp_file { |dest| merge_files(group, dest, key, compare) }
+        group.each { |file| File.unlink(file) }
+        merged
       end
     end
 
-    def merge_csv_part_files(&)
-      file_merge_cnt = 0
+    # keeps the next row of every file in a queue sorted by key, so each row written is the smallest left
+    def merge_files(files, dest, key, compare)
+      open_temp_files(files) do |sources|
+        queue = []
+        sources.each_with_index do |src, idx|
+          src.shift if @headers
+          enqueue(queue, src.shift, idx, key, compare)
+        end
 
-      while @csv_part_files.size > 1
-        file_merge_cnt += 1
-
-        # inputs stay in the list until merged, so a failed merge still cleans them up
-        csv_part_file1, csv_part_file2 = @csv_part_files.first(2)
-        @csv_part_files << "#{new_csv_file}.merge.#{file_merge_cnt}"
-
-        merge_sort_csv_files(csv_part_file1, csv_part_file2, @csv_part_files.last, &)
-
-        @csv_part_files.shift(2).each { |file| File.unlink(file) }
+        until queue.empty?
+          _, row, idx = queue.shift
+          dest << row
+          enqueue(queue, sources[idx].shift, idx, key, compare)
+        end
       end
+    end
 
-      if @csv_part_files.size.positive?
-        FileUtils.mv(@csv_part_files.pop, new_csv_file)
-      else
-        write_headers_only
+    # rows with equal keys keep the order of the files they came from
+    def enqueue(queue, row, idx, key, compare)
+      return unless row
+
+      value = key.call(row)
+      pos = queue.bsearch_index do |other_value, _, other_idx|
+        result = compare.call(value, other_value)
+        result.negative? || (result.zero? && idx < other_idx)
       end
+      queue.insert(pos || queue.size, [value, row, idx])
+    end
+
+    def open_temp_files(files)
+      sources = []
+      # not map: sources has to hold the files opened before one fails to open, so ensure closes them
+      # rubocop:disable-next Style/MapIntoArray
+      files.each { |file| sources << CSV.open(file, 'rb', **write_options) }
+      yield sources
+    ensure
+      sources.each(&:close)
+    end
+
+    # temporary files are written with the write options, so reading them back with those changes nothing
+    def write_temp_file
+      @temp_files << File.join(@tmp_dir, "#{File.basename(new_csv_file)}.#{@temp_files.size}.tmp")
+      CSV.open(@temp_files.last, 'wb', **write_options) do |csv|
+        csv << @headers if @headers
+        yield csv
+      end
+      @temp_files.last
     end
 
     # a file without rows is written rather than copied, so it's in the same encoding as a sorted one
-    def write_headers_only
+    def write_sorted_file(sorted_file)
+      return FileUtils.mv(sorted_file, new_csv_file) if sorted_file
+
       CSV.open(new_csv_file, 'wb', **write_options) do |csv|
         csv << @headers if @headers
       end
@@ -161,9 +161,9 @@ module CSVUtils
     end
 
     # removes the temporary files left behind when sorting fails part way through
-    def delete_csv_part_files
-      @csv_part_files.each { |file| FileUtils.rm_f(file) }
-      @csv_part_files = []
+    def delete_temp_files
+      @temp_files.each { |file| FileUtils.rm_f(file) }
+      @temp_files = []
     end
   end
 end
