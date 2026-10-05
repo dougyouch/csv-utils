@@ -38,13 +38,8 @@ module CSVUtils
 
     def append(additional_headers, &block)
       steps << [:append, @headers, block]
-
-      if additional_headers
-        @headers += additional_headers
-      else
-        @headers = nil
-      end
-
+      # without headers (read_headers not called) the output has no header row to extend
+      @headers = (@headers + additional_headers if @headers && additional_headers)
       self
     end
 

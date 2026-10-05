@@ -160,4 +160,40 @@ describe CSVUtils::CSVTransformer do
 
     it { expect(dest_csv).to eq(expected_csv) }
   end
+
+  context 'append without headers' do
+    subject do
+      csv_transformer
+        .append(['Email']) { |row, _headers, _additional_data| ["#{row[1].downcase}@example.com"] }
+        .process
+    end
+
+    before { subject }
+
+    it 'appends to every row, including the first, without a header row' do
+      expect(dest_csv).to eq(
+        [
+          %w[ID Name name@example.com],
+          %w[319 Foo foo@example.com],
+          %w[91 Bar bar@example.com],
+          %w[19133158 Unknown unknown@example.com]
+        ]
+      )
+    end
+  end
+
+  context 'append with nil headers' do
+    subject do
+      csv_transformer
+        .read_headers
+        .append(nil) { |row, _headers, _additional_data| [row[0].size.to_s] }
+        .process
+    end
+
+    before { subject }
+
+    it 'drops the header row' do
+      expect(dest_csv).to eq([%w[319 Foo 3], %w[91 Bar 2], %w[19133158 Unknown 8]])
+    end
+  end
 end
