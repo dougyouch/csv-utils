@@ -25,12 +25,7 @@ module CSVUtils
                 :row_separator
 
     def initialize(io)
-      line =
-        if io.is_a?(String)
-          File.open(io, 'rb', &:readline)
-        else
-          io.readline
-        end
+      line = read_first_line(io)
 
       @col_separator = auto_detect_col_sep(line)
       @row_separator = auto_detect_row_sep(line)
@@ -53,10 +48,12 @@ module CSVUtils
       ROW_SEPARATORS.detect { |sep| line.include?(sep) }
     end
 
+    # parses quoted headers like a CSV row, and falls back to a plain split when the line is malformed
     def get_headers(line)
-      headers = line.split(col_separator)
-      headers[0] = strip_byte_order_marks(headers[0])
-      headers
+      line = strip_byte_order_marks(line)
+      CSV.parse_line(line, **header_parse_options) || []
+    rescue CSV::MalformedCSVError
+      line.chomp(row_separator.to_s).split(col_separator, -1)
     end
 
     def get_number_of_columns(line)
@@ -73,6 +70,20 @@ module CSVUtils
 
     def strip_byte_order_marks(header)
       ByteOrderMark.strip(header)
+    end
+
+    private
+
+    # an empty file reads as an empty line, which makes the options invalid
+    def read_first_line(io)
+      line = io.is_a?(String) ? File.open(io, 'rb', &:gets) : io.gets
+      line || ''
+    end
+
+    def header_parse_options
+      options = { col_sep: col_separator }
+      options[:row_sep] = row_separator if row_separator
+      options
     end
   end
 end

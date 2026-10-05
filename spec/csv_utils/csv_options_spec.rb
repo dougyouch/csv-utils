@@ -82,4 +82,69 @@ describe CSVUtils::CSVOptions do
 
     it { is_expected.to eq(2) }
   end
+
+  context 'get_headers' do
+    subject { csv_options.get_headers(line) }
+
+    let(:line) { "#{byte_order_mark}id,\"last, first\",,age\n" }
+
+    it { is_expected.to eq(['id', 'last, first', nil, 'age']) }
+
+    describe 'with a byte order mark' do
+      let(:byte_order_mark) { (+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT') }
+      let(:line) { "#{byte_order_mark}id,name\n".b }
+
+      it { is_expected.to eq(%w[id name]) }
+    end
+
+    describe 'with a malformed quote' do
+      let(:line) { "id,na\"me,age\n" }
+
+      it { is_expected.to eq(['id', 'na"me', 'age']) }
+    end
+
+    describe 'without a row separator' do
+      let(:io) { StringIO.new('id,name') }
+      let(:line) { 'id,"name' }
+
+      it { is_expected.to eq(['id', '"name']) }
+    end
+  end
+
+  context 'with quoted separators in the headers' do
+    let(:headings) { ['ID', 'Last, First', 'Age'] }
+
+    it { expect(csv_options.columns).to eq(3) }
+  end
+
+  context 'with carriage return row separators' do
+    let(:row_sep) { "\r" }
+
+    it { expect(csv_options.row_separator).to eq("\r") }
+    it { expect(csv_options.columns).to eq(2) }
+  end
+
+  context 'with an empty file' do
+    let(:io) { StringIO.new('') }
+
+    it { expect(csv_options.valid?).to eq(false) }
+    it { expect(csv_options.columns).to be_nil }
+    it { expect(csv_options.encoding).to eq('UTF-8') }
+  end
+
+  context 'with a file path' do
+    let(:file) { 'csv_options_spec.csv' }
+    let(:csv_options) { CSVUtils::CSVOptions.new(file) }
+
+    before { File.binwrite(file, csv) }
+    after { FileUtils.rm_f(file) }
+
+    it { expect(csv_options.columns).to eq(2) }
+
+    describe 'that is empty' do
+      let(:csv) { '' }
+
+      it { expect(csv_options.valid?).to eq(false) }
+    end
+  end
 end
