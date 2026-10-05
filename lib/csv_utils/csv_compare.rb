@@ -9,8 +9,6 @@ module CSVUtils
     # compare_proc used to compare the id column(s)
     # update_comparison_columns column(s) to compare for equality, ex: updated_at, timestamp, hash
     #  caveat: update_comparison_columns need to be in both csv files
-    UTF8_BYTE_ORDER_MARK = (+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT').freeze
-
     attr_reader :primary_data_file,
                 :update_comparison_columns,
                 :compare_proc
@@ -75,7 +73,7 @@ module CSVUtils
 
     def read_headers(csv)
       headers = csv.shift || []
-      headers[0] = headers[0].delete_prefix(UTF8_BYTE_ORDER_MARK) if headers[0]
+      headers[0] = ByteOrderMark.strip(headers[0]) if headers[0]
       headers
     end
 

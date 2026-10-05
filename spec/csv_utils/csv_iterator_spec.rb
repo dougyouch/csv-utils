@@ -295,4 +295,31 @@ describe CSVUtils::CSVIterator do
       expect(subject.headers).to eq(headers)
     end
   end
+
+  describe 'header edge cases' do
+    let(:edge_file) { 'csv_iterator_edge_test.csv' }
+
+    after do
+      FileUtils.rm_f(edge_file)
+    end
+
+    it 'treats a file with no lines as having no headers or rows' do
+      File.write(edge_file, '')
+      iterator = described_class.new(edge_file)
+      expect(iterator.headers).to eq([])
+      expect(iterator.to_a).to eq([])
+    end
+
+    it 'keeps an empty first header cell as nil' do
+      File.write(edge_file, ",name\n1,a\n")
+      iterator = described_class.new(edge_file)
+      expect(iterator.headers).to eq([nil, 'name'])
+      expect(iterator.first).to eq(nil => '1', 'name' => 'a')
+    end
+
+    it 'strips the byte order mark from a file read as utf-8 text' do
+      File.write(edge_file, "\uFEFFété,name\n1,a\n")
+      expect(described_class.new(edge_file, {}, 'r:utf-8').headers).to eq(%w[été name])
+    end
+  end
 end

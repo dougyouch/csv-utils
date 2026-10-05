@@ -5,13 +5,7 @@ module CSVUtils
   class CSVIterator
     include Enumerable
 
-    BYTE_ORDER_MARKS = [
-      (+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT'),       # UTF-8
-      (+"\xFE\xFF").force_encoding('ASCII-8BIT'),           # UTF-16 BE
-      (+"\xFF\xFE").force_encoding('ASCII-8BIT'),           # UTF-16 LE
-      (+"\x00\x00\xFE\xFF").force_encoding('ASCII-8BIT'),   # UTF-32 BE
-      (+"\xFF\xFE\x00\x00").force_encoding('ASCII-8BIT')    # UTF-32 LE
-    ].freeze
+    BYTE_ORDER_MARKS = ByteOrderMark::ENCODINGS.keys.freeze
 
     attr_reader :prev_row
 
@@ -41,8 +35,7 @@ module CSVUtils
 
       lineno = 0
       unless headers
-        headers = @src_csv.shift
-        strip_bom!(headers[0])
+        headers = read_headers
         lineno += 1
       end
 
@@ -56,9 +49,7 @@ module CSVUtils
 
     def headers
       @src_csv.rewind
-      headers = @src_csv.shift
-      strip_bom!(headers[0])
-      headers
+      read_headers
     end
 
     def to_hash(key, value = nil, &)
@@ -105,13 +96,11 @@ module CSVUtils
 
     private
 
-    def strip_bom!(col)
-      BYTE_ORDER_MARKS.each do |bom|
-        if col.start_with?(bom)
-          col.sub!(bom, '')
-          break
-        end
-      end
+    # an empty file has no headers, and an empty first header cell is nil
+    def read_headers
+      headers = @src_csv.shift || []
+      headers[0] = ByteOrderMark.strip(headers[0]) if headers[0]
+      headers
     end
   end
 end

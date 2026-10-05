@@ -2,21 +2,10 @@
 
 require 'optparse'
 
-BYTE_ORDER_MARKS = {
-  "\xEF\xBB\xBF".force_encoding('ASCII-8BIT') => 'UTF-8',
-  "\xFE\xFF".force_encoding('ASCII-8BIT') => 'UTF-16',
-  "\xFF\xFE".force_encoding('ASCII-8BIT') => 'UTF-16',
-  "\x00\x00\xFE\xFF".force_encoding('ASCII-8BIT') => 'UTF-32',
-  "\xFF\xFE\x00\x00".force_encoding('ASCII-8BIT') => 'UTF-32'
-}
+require 'csv-utils'
 
 def strip_byte_order_mark(line)
-  BYTE_ORDER_MARKS.keys.detect do |bom|
-    if line =~ /\A#{bom}/
-      return line.sub(/\A#{bom}/, '')
-    end
-  end
-  line
+  CSVUtils::ByteOrderMark.strip(line)
 end
 
 def csv_parse_line(line)

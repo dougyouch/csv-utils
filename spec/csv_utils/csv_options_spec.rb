@@ -54,6 +54,26 @@ describe CSVUtils::CSVOptions do
 
       it { is_expected.to eq('UTF-8') }
     end
+
+    describe 'with UTF-32 LE byte order mark' do
+      let(:byte_order_mark) { (+"\xFF\xFE\x00\x00").force_encoding('ASCII-8BIT') }
+
+      it { is_expected.to eq('UTF-32') }
+      it { expect(csv_options.byte_order_mark).to eq(byte_order_mark) }
+    end
+
+    describe 'with UTF-16 LE byte order mark' do
+      let(:byte_order_mark) { (+"\xFF\xFE").force_encoding('ASCII-8BIT') }
+
+      it { is_expected.to eq('UTF-16') }
+    end
+
+    describe 'reading a utf-8 io with non-ascii headers' do
+      let(:io) { StringIO.new("été,Name\n1,2\n") }
+
+      it { is_expected.to eq('UTF-8') }
+      it { expect(csv_options.columns).to eq(2) }
+    end
   end
 
   context 'columns' do

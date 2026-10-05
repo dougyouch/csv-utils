@@ -3,14 +3,7 @@
 # Auto detect a csv files options
 module CSVUtils
   class CSVOptions
-    # this list is from https://en.wikipedia.org/wiki/Byte_order_mark
-    BYTE_ORDER_MARKS = {
-      (+"\xEF\xBB\xBF").force_encoding('ASCII-8BIT') => 'UTF-8',
-      (+"\xFE\xFF").force_encoding('ASCII-8BIT') => 'UTF-16',
-      (+"\xFF\xFE").force_encoding('ASCII-8BIT') => 'UTF-16',
-      (+"\x00\x00\xFE\xFF").force_encoding('ASCII-8BIT') => 'UTF-32',
-      (+"\xFF\xFE\x00\x00").force_encoding('ASCII-8BIT') => 'UTF-32'
-    }.freeze
+    BYTE_ORDER_MARKS = ByteOrderMark::ENCODINGS
 
     COL_SEPARATORS = [
       "\x02",
@@ -71,9 +64,7 @@ module CSVUtils
     end
 
     def get_byte_order_mark(line)
-      BYTE_ORDER_MARKS.keys.detect do |bom|
-        line =~ /\A#{bom}/
-      end
+      ByteOrderMark.detect(line)
     end
 
     def get_character_encoding(bom)
@@ -81,7 +72,7 @@ module CSVUtils
     end
 
     def strip_byte_order_marks(header)
-      @byte_order_mark ? header.sub(@byte_order_mark, '') : header
+      ByteOrderMark.strip(header)
     end
   end
 end

@@ -4,6 +4,7 @@ require 'csv'
 
 # Collection of tools for working with CSV files.
 module CSVUtils
+  autoload :ByteOrderMark, 'csv_utils/byte_order_mark'
   autoload :CSVCompare, 'csv_utils/csv_compare'
   autoload :CSVExtender, 'csv_utils/csv_extender'
   autoload :CSVIterator, 'csv_utils/csv_iterator'
