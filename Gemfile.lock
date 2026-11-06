@@ -2,7 +2,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     ast (2.4.3)
-    csv (3.3.6)
+    csv (3.3.7)
     diff-lcs (1.6.2)
     inheritance-helper (1.0.0)
     json (3.0.2)
@@ -64,7 +64,7 @@ DEPENDENCIES
 
 CHECKSUMS
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
-  csv (3.3.6) sha256=aba61e7e507a66f03d45cb1f3c4b6359861c3504038b422962875dce099e4456
+  csv (3.3.7) sha256=15a3f16f6628da8664d455eb634e7f22031bcf53044923caf56975109e71b9f8
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
   inheritance-helper (1.0.0) sha256=e9dca1795457276545cefbf9ad62b734ed7ae567d43c2d900a9472b04e8b17f3
   json (3.0.2) sha256=8e6d7e7b11384c21230430cef90b71f14849a34a1f4452796670f7c981bd19df
